@@ -20,7 +20,7 @@ MIN_COUNTER_CHARS = 40    # scaffold2 최소 글자
 MIN_REFLECT_CHARS = 20    # scaffold3 최소 글자
 
 # ── 진행률 표시 ────────────────────────────────────────
-STEPS = ["시작", "과제 설명", "사전 분석", "AI 피드백", "최종 제안", "사후 질문", "완료"]
+STEPS = ["시작", "과제 설명", "사전 분석", "자유 탐색", "AI 피드백", "최종 제안", "사후 질문", "완료"]
 
 def show_progress(step_index):
     st.progress(step_index / (len(STEPS) - 1))
@@ -73,6 +73,8 @@ defaults = {
     "scaffold1_done": False,
     "scaffold2_done": False,
     "scaffold3_done": False,
+    "chat_history": [],   # 자유 탐색 대화 로그
+    "chat_count": 0,      # 주고받은 횟수
     # 사후 질문 (task마다 초기화)
     "post_q1": 3,   # AI 수치 신뢰도
     "post_q2": 3,   # AI 출처 신뢰도
@@ -195,7 +197,12 @@ elif st.session_state.step == "task_intro":
         st.markdown("""
         ### 과제
         위 배경 자료를 바탕으로, AI의 데이터 분석을 참고하여
-        **VELOX가 지속가능성으로 전환하기 위한 서비스 시스템을 제안**하세요.
+        **VELOX가 직면한 핵심 지속가능성 문제를 정의**하세요.
+
+        좋은 문제 정의는 다음을 포함합니다:
+        - 가장 중요한 문제가 무엇인지 명확히 진술
+        - 데이터나 이해관계자 상황을 근거로 제시
+        - 왜 지금 이 문제가 시급한지 설명
         """)
 
     else:
@@ -251,7 +258,12 @@ elif st.session_state.step == "task_intro":
         st.markdown("""
         ### 과제
         위 배경 자료를 바탕으로, AI의 데이터 분석을 참고하여
-        **NOVA가 전자 폐기물 문제를 해결하기 위한 지속가능한 서비스 시스템을 제안**하세요.
+        **NOVA가 직면한 핵심 전자 폐기물 문제를 정의**하세요.
+
+        좋은 문제 정의는 다음을 포함합니다:
+        - 가장 중요한 문제가 무엇인지 명확히 진술
+        - 데이터나 이해관계자 상황을 근거로 제시
+        - 왜 지금 이 문제가 시급한지 설명
         """)
 
     if "countdown_start" not in st.session_state:
@@ -289,7 +301,7 @@ elif st.session_state.step == "pre_framing":
     text = st.text_area(
         f"초기 분석 ({MIN_PRE_CHARS}자 이상)",
         height=200,
-        placeholder="예) VELOX의 핵심 문제는 과잉 생산 구조에 있으며, 소비자와 생산자 양쪽에서...",
+        placeholder="예) VELOX의 핵심 문제는 과잉 생산으로 인한 탄소 배출 증가이며, 이는 소비자 행동 변화와 생산 구조 개혁이 동시에 필요한 구조적 문제입니다...",
         value=st.session_state.pre_framing
     )
     char_count = len(text)
@@ -303,8 +315,80 @@ elif st.session_state.step == "pre_framing":
     if char_count >= MIN_PRE_CHARS:
         if st.button("AI 피드백 받기 →", use_container_width=True, type="primary"):
             st.session_state.pre_framing = text
-            with st.spinner("AI 분석 중... (10~20초 소요)"):
-                original = get_ai_response(text, st.session_state.task_number)
+            st.session_state.chat_history = []
+            st.session_state.chat_count = 0
+            st.session_state.step = "free_chat"
+            st.rerun()
+    else:
+        st.button("AI 피드백 받기 →", disabled=True, use_container_width=True)
+
+# ══════════════════════════════════════════════════════
+# STEP 4 — AI 응답 + 조건별 Scaffold (목표 8분)
+# ══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
+# STEP FREE_CHAT — 자유 탐색 대화
+# ══════════════════════════════════════════════════════
+elif st.session_state.step == "free_chat":
+    show_progress(3)
+    task_num = st.session_state.task_number
+    brand = "VELOX" if task_num == 1 else "NOVA"
+    CHAT_SECONDS = 180  # 자유 탐색 시간: 3분
+
+    st.subheader(f"2단계: {brand} 자유 탐색 대화")
+    st.markdown(f"""
+    AI와 자유롭게 대화하며 **{brand}**의 문제를 더 깊이 탐색해 보세요.  
+    배경 자료에서 궁금한 점, 데이터의 의미, 이해관계자 관계 등 무엇이든 질문할 수 있습니다.
+    """)
+
+    # 타이머 시작
+    if "chat_timer_start" not in st.session_state:
+        st.session_state.chat_timer_start = time.time()
+
+    elapsed = int(time.time() - st.session_state.chat_timer_start)
+    remaining = max(0, CHAT_SECONDS - elapsed)
+    mins, secs = divmod(remaining, 60)
+
+    # 대화 이력 표시
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # 타이머 상태 표시
+    if remaining > 0:
+        st.info(f"⏱️ 자유 탐색 시간: {mins}분 {secs:02d}초 남음 — 자유롭게 질문하세요.")
+    else:
+        st.success("✅ 탐색 시간이 완료되었습니다. 다음 단계로 이동할 수 있습니다.")
+
+    # 채팅 입력 (타이머 종료 전후 모두 가능)
+    user_input = st.chat_input("질문이나 아이디어를 입력하세요...")
+    if user_input:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state.chat_count += 1
+        from utils.claude_api import get_free_chat_response
+        with st.spinner("AI 응답 생성 중..."):
+            reply = get_free_chat_response(
+                st.session_state.chat_history,
+                task_number=task_num,
+                pre_framing=st.session_state.pre_framing
+            )
+        st.session_state.chat_history.append({"role": "assistant", "content": reply})
+        st.rerun()
+
+    # 타이머 자동 갱신 (타이머 진행 중일 때)
+    if remaining > 0:
+        time.sleep(1)
+        st.rerun()
+
+    # 다음 단계 버튼 (3분 경과 후 활성화)
+    st.divider()
+    if remaining == 0:
+        if st.button("탐색 완료 → AI 최종 분석 받기",
+                     use_container_width=True, type="primary"):
+            del st.session_state.chat_timer_start
+            with st.spinner("AI 최종 분석 생성 중..."):
+                from utils.claude_api import get_ai_response, apply_woz
+                original = get_ai_response(
+                    st.session_state.pre_framing, task_num)
                 st.session_state.ai_response_original = original
                 displayed, e1_orig, e1_mod, e2 = apply_woz(original)
                 st.session_state.ai_response_displayed = displayed
@@ -314,11 +398,10 @@ elif st.session_state.step == "pre_framing":
             st.session_state.step = "ai_response"
             st.rerun()
     else:
-        st.button("AI 피드백 받기 →", disabled=True, use_container_width=True)
+        st.button("탐색 완료 → AI 최종 분석 받기",
+                  disabled=True, use_container_width=True)
+        st.caption("⚠️ 3분 탐색 시간이 끝나면 자동으로 활성화됩니다.")
 
-# ══════════════════════════════════════════════════════
-# STEP 4 — AI 응답 + 조건별 Scaffold (목표 8분)
-# ══════════════════════════════════════════════════════
 elif st.session_state.step == "ai_response":
     show_progress(3)
     condition = st.session_state.condition
@@ -605,8 +688,17 @@ elif st.session_state.step == "ai_response":
 # ══════════════════════════════════════════════════════
 elif st.session_state.step == "final_output":
     show_progress(4)
-    st.subheader("3단계: 최종 서비스 디자인 제안")
-    st.markdown(f"AI 피드백을 검토한 후, VELOX의 지속가능성 전환을 위한 최종 제안을 작성해 주세요. ({MIN_FINAL_CHARS}자 이상)")
+    task_num_f = st.session_state.task_number
+    brand_f = "VELOX" if task_num_f == 1 else "NOVA"
+    st.subheader("3단계: 최종 문제 정의")
+    st.markdown(f"""
+    AI 피드백을 검토한 후, **{brand_f}의 핵심 문제를 최종적으로 정의**해 주세요. ({MIN_FINAL_CHARS}자 이상)
+
+    다음 세 가지를 포함해 주세요:
+    - **핵심 문제**: {brand_f}가 직면한 가장 중요한 문제는 무엇인가?
+    - **근거**: 어떤 데이터나 이해관계자 상황이 이를 뒷받침하는가?
+    - **시급성**: 왜 지금 이 문제를 해결해야 하는가?
+    """)
 
     col1, col2 = st.columns([1, 1], gap="medium")
     with col1:
@@ -623,7 +715,7 @@ elif st.session_state.step == "final_output":
         final = st.text_area(
             "최종 제안",
             height=280,
-            placeholder="AI 피드백을 검토한 후 최종 디자인 제안을 작성하세요...",
+            placeholder="예) VELOX의 핵심 문제는 연간 4,200만 벌 생산 중 40%가 소각되는 과잉 생산 구조입니다. 이는 단순한 환경 문제가 아니라...",
             value=st.session_state.final_output,
             label_visibility="collapsed"
         )
@@ -688,7 +780,7 @@ elif st.session_state.step == "final_output":
             st.session_state.step = "post_survey"
             st.rerun()
     else:
-        st.button("제출하기 ✓", disabled=True, use_container_width=True)
+        st.button("문제 정의 제출 ✓", disabled=True, use_container_width=True)
 
 # ══════════════════════════════════════════════════════
 # STEP 6 — 사후 질문 (Task마다)
@@ -712,18 +804,18 @@ elif st.session_state.step == "post_survey":
         st.markdown("**검증 및 비판적 사고**")
         q3 = st.slider("Q3. AI 응답을 읽으면서 직접 확인하고 싶은 내용이 생겼나요?",
                         1, 5, st.session_state.post_q3, key=f"q3_{task_num}")
-        q4 = st.slider("Q4. 최종 제안 작성 시 AI 응답을 수정하거나 걸러낸 부분이 있었나요?",
+        q4 = st.slider("Q4. 문제 정의 작성 시 AI 응답의 내용을 수정하거나 다르게 해석한 부분이 있었나요?",
                         1, 5, st.session_state.post_q4, key=f"q4_{task_num}")
         st.divider()
         st.markdown("**자기 주체성**")
-        q5 = st.slider("Q5. 최종 제안이 AI 응답보다 본인의 초기 분석에 더 가깝다고 생각하나요?",
+        q5 = st.slider("Q5. 최종 문제 정의가 AI 응답보다 본인의 초기 분석에 더 가깝다고 생각하나요?",
                         1, 5, st.session_state.post_q5,
                         key=f"q5_{task_num}",
                         help="1 = AI 응답에 더 가깝다 / 5 = 내 초기 분석에 더 가깝다")
         st.divider()
         st.markdown("**서술형**")
         q6 = st.text_area(
-            "Q6. AI 응답에서 의심스럽거나 불확실하다고 느낀 부분이 있었다면 적어주세요. (없으면 공란)",
+            "Q6. AI가 제시한 데이터나 출처 중 의심스럽거나 직접 확인하고 싶었던 부분이 있었다면 적어주세요. (없으면 공란)",
             height=80,
             value=st.session_state.post_q6,
             key=f"q6_{task_num}"
@@ -751,6 +843,9 @@ elif st.session_state.step == "post_survey":
                 st.session_state.task_number = 2
                 st.session_state.condition = get_condition(
                     st.session_state.participant_id, 2)
+                # chat_timer_start는 key-value reset 전에 별도 삭제
+                if "chat_timer_start" in st.session_state:
+                    del st.session_state.chat_timer_start
                 for key in ["pre_framing", "ai_response_original",
                             "ai_response_displayed", "woz_error1_original",
                             "woz_error1_modified", "woz_error2_inserted",
@@ -758,6 +853,7 @@ elif st.session_state.step == "post_survey":
                             "counterfactual_text", "reflection_text",
                             "final_output", "scaffold1_done",
                             "scaffold2_done", "scaffold3_done",
+                            "chat_history", "chat_count",
                             "post_q1", "post_q2", "post_q3",
                             "post_q4", "post_q5", "post_q6"]:
                     st.session_state[key] = defaults[key]

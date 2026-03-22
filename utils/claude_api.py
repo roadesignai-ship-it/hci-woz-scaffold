@@ -3,20 +3,22 @@ import streamlit as st
 import anthropic
 
 SYSTEM_PROMPT_TASK1 = """당신은 패션 산업의 지속가능성 전문 컨설턴트입니다.
-서비스 디자인 학생이 Fast Fashion 브랜드 VELOX의 지속가능성 전환 서비스를 설계하도록 돕고 있습니다.
+서비스 디자인 학생이 Fast Fashion 브랜드 VELOX의 핵심 지속가능성 문제를 정의하도록 돕고 있습니다.
 다음 조건을 반드시 지키세요:
 1. 응답에 구체적인 통계 수치를 반드시 3개 이상 포함하세요 (퍼센트, 톤, 달러 등).
 2. 관련 보고서나 기관 데이터를 최소 1개 인용하세요.
-3. 이해관계자별 서비스 개입 지점을 구체적으로 제안하세요.
-4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요."""
+3. 문제의 근거와 시급성을 이해관계자 관점에서 설명하세요.
+4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요.
+5. 해결책이나 서비스 제안은 하지 말고, 문제 진단과 근거 제시에만 집중하세요."""
 
 SYSTEM_PROMPT_TASK2 = """당신은 전자 산업의 지속가능성 및 순환경제 전문 컨설턴트입니다.
-서비스 디자인 학생이 전자기기 브랜드 NOVA의 전자 폐기물 문제 해결 서비스를 설계하도록 돕고 있습니다.
+서비스 디자인 학생이 전자기기 브랜드 NOVA의 핵심 전자 폐기물 문제를 정의하도록 돕고 있습니다.
 다음 조건을 반드시 지키세요:
 1. 응답에 구체적인 통계 수치를 반드시 3개 이상 포함하세요 (퍼센트, 톤, 점수 등).
 2. 관련 보고서나 기관 데이터를 최소 1개 인용하세요.
-3. 이해관계자별 서비스 개입 지점을 구체적으로 제안하세요.
-4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요."""
+3. 문제의 근거와 시급성을 이해관계자 관점에서 설명하세요.
+4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요.
+5. 해결책이나 서비스 제안은 하지 말고, 문제 진단과 근거 제시에만 집중하세요."""
 
 # ── WoZ 오류 설정 ──────────────────────────────────────
 # 오류1: 수치 변조 - 첫 번째 퍼센트 수치를 0.4배로 축소
@@ -99,3 +101,54 @@ def apply_woz(original: str):
         e2_inserted = True
 
     return text, e1_original, e1_modified, e2_inserted
+
+
+FREE_CHAT_SYSTEM_TASK1 = """당신은 Fast Fashion 산업의 지속가능성 전문가입니다.
+서비스 디자인 학생이 VELOX 브랜드의 핵심 문제를 탐색하도록 돕고 있습니다.
+학생의 질문에 솔직하고 정확하게 답변하되, 다음을 지키세요:
+- 데이터와 근거를 중심으로 설명하세요.
+- 학생이 문제를 스스로 정의할 수 있도록 질문으로 유도하세요.
+- 해결책이나 서비스 아이디어는 먼저 제시하지 마세요.
+응답은 한국어로 3~5문장 이내로 간결하게 작성하세요."""
+
+FREE_CHAT_SYSTEM_TASK2 = """당신은 전자 폐기물 및 순환경제 전문가입니다.
+서비스 디자인 학생이 NOVA 브랜드의 핵심 문제를 탐색하도록 돕고 있습니다.
+학생의 질문에 솔직하고 정확하게 답변하되, 다음을 지키세요:
+- 데이터와 근거를 중심으로 설명하세요.
+- 학생이 문제를 스스로 정의할 수 있도록 질문으로 유도하세요.
+- 해결책이나 서비스 아이디어는 먼저 제시하지 마세요.
+응답은 한국어로 3~5문장 이내로 간결하게 작성하세요."""
+
+
+def get_free_chat_response(
+    chat_history: list,
+    task_number: int = 1,
+    pre_framing: str = ""
+) -> str:
+    """자유 탐색 대화 — WoZ 없는 실제 Claude 응답"""
+    import streamlit as st
+    system = FREE_CHAT_SYSTEM_TASK1 if task_number == 1 else FREE_CHAT_SYSTEM_TASK2
+
+    # pre_framing을 첫 메시지로 컨텍스트 제공
+    messages = []
+    if pre_framing:
+        messages.append({
+            "role": "user",
+            "content": f"[참고: 학생의 초기 분석]\n{pre_framing}"
+        })
+        messages.append({
+            "role": "assistant",
+            "content": "초기 분석을 잘 읽었습니다. 어떤 부분이 더 궁금하신가요?"
+        })
+
+    # 실제 대화 이력 추가
+    messages.extend(chat_history)
+
+    client = anthropic.Anthropic(api_key=st.secrets["anthropic_api_key"])
+    message = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=600,
+        system=system,
+        messages=messages
+    )
+    return message.content[0].text
