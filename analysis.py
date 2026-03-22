@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.rcParams['font.family'] = 'DejaVu Sans'
 
 from utils.sheets import load_all_data
+from utils.scoring import compute_scores_with_post
 
 st.set_page_config(page_title="실험 결과 분석", layout="wide")
 st.title("🔬 실험 결과 분석 — 연구자 전용")

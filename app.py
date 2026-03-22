@@ -20,7 +20,7 @@ MIN_COUNTER_CHARS = 40    # scaffold2 최소 글자
 MIN_REFLECT_CHARS = 20    # scaffold3 최소 글자
 
 # ── 진행률 표시 ────────────────────────────────────────
-STEPS = ["시작", "과제 설명", "사전 분석", "AI 피드백", "최종 제안", "완료"]
+STEPS = ["시작", "과제 설명", "사전 분석", "AI 피드백", "최종 제안", "사후 질문", "완료"]
 
 def show_progress(step_index):
     st.progress(step_index / (len(STEPS) - 1))
@@ -73,6 +73,13 @@ defaults = {
     "scaffold1_done": False,
     "scaffold2_done": False,
     "scaffold3_done": False,
+    # 사후 질문 (task마다 초기화)
+    "post_q1": 3,   # AI 수치 신뢰도
+    "post_q2": 3,   # AI 출처 신뢰도
+    "post_q3": 3,   # 검증 필요 느낌
+    "post_q4": 3,   # 최종 제안 수정 정도
+    "post_q5": 3,   # AI vs 내 분석 가까움
+    "post_q6": "",  # 의심스러운 부분 서술
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -642,6 +649,7 @@ elif st.session_state.step == "final_output":
                 confidence_score=st.session_state.confidence_score,
                 verification_text=st.session_state.verification_text,
                 counterfactual_text=st.session_state.counterfactual_text,
+                reflection_text=st.session_state.reflection_text,
                 woz_error1_modified=st.session_state.woz_error1_modified,
                 woz_error2_inserted=st.session_state.woz_error2_inserted,
             )
@@ -676,29 +684,91 @@ elif st.session_state.step == "final_output":
                 save_to_sheets(row)
 
             # within-subject: Task1 완료 → Task2로 전환
-            if st.session_state.task_number == 1:
+            # 최종 제안 제출 후 → 사후 질문으로 이동
+            st.session_state.step = "post_survey"
+            st.rerun()
+    else:
+        st.button("제출하기 ✓", disabled=True, use_container_width=True)
+
+# ══════════════════════════════════════════════════════
+# STEP 6 — 사후 질문 (Task마다)
+# ══════════════════════════════════════════════════════
+elif st.session_state.step == "post_survey":
+    show_progress(5)
+    task_num = st.session_state.task_number
+    cond = st.session_state.condition
+    st.subheader(f"과제 {task_num} 사후 질문")
+    st.markdown(f"방금 완료한 **{'VELOX' if task_num == 1 else 'NOVA'} 과제**에 대해 솔직하게 답해주세요. (약 3분)")
+    st.caption("1 = 전혀 그렇지 않다 / 5 = 매우 그렇다")
+    st.divider()
+
+    with st.form(f"post_survey_{task_num}"):
+        st.markdown("**AI 응답 신뢰도**")
+        q1 = st.slider("Q1. AI가 제시한 통계 수치를 신뢰했나요?",
+                        1, 5, st.session_state.post_q1, key=f"q1_{task_num}")
+        q2 = st.slider("Q2. AI가 인용한 보고서나 기관 출처를 신뢰했나요?",
+                        1, 5, st.session_state.post_q2, key=f"q2_{task_num}")
+        st.divider()
+        st.markdown("**검증 및 비판적 사고**")
+        q3 = st.slider("Q3. AI 응답을 읽으면서 직접 확인하고 싶은 내용이 생겼나요?",
+                        1, 5, st.session_state.post_q3, key=f"q3_{task_num}")
+        q4 = st.slider("Q4. 최종 제안 작성 시 AI 응답을 수정하거나 걸러낸 부분이 있었나요?",
+                        1, 5, st.session_state.post_q4, key=f"q4_{task_num}")
+        st.divider()
+        st.markdown("**자기 주체성**")
+        q5 = st.slider("Q5. 최종 제안이 AI 응답보다 본인의 초기 분석에 더 가깝다고 생각하나요?",
+                        1, 5, st.session_state.post_q5,
+                        key=f"q5_{task_num}",
+                        help="1 = AI 응답에 더 가깝다 / 5 = 내 초기 분석에 더 가깝다")
+        st.divider()
+        st.markdown("**서술형**")
+        q6 = st.text_area(
+            "Q6. AI 응답에서 의심스럽거나 불확실하다고 느낀 부분이 있었다면 적어주세요. (없으면 공란)",
+            height=80,
+            value=st.session_state.post_q6,
+            key=f"q6_{task_num}"
+        )
+
+        submitted = st.form_submit_button("제출 →", use_container_width=True, type="primary")
+        if submitted:
+            st.session_state.post_q1 = q1
+            st.session_state.post_q2 = q2
+            st.session_state.post_q3 = q3
+            st.session_state.post_q4 = q4
+            st.session_state.post_q5 = q5
+            st.session_state.post_q6 = q6
+
+            # 사후 질문 데이터를 기존 row에 추가해서 Sheets 업데이트
+            from utils.sheets import update_post_survey
+            update_post_survey(
+                participant_id=st.session_state.participant_id,
+                task_number=task_num,
+                q1=q1, q2=q2, q3=q3, q4=q4, q5=q5, q6=q6
+            )
+
+            # Task 전환 또는 완료
+            if task_num == 1:
                 st.session_state.task_number = 2
                 st.session_state.condition = get_condition(
                     st.session_state.participant_id, 2)
-                # Task2용 상태 초기화 (개인 정보는 유지)
                 for key in ["pre_framing", "ai_response_original",
                             "ai_response_displayed", "woz_error1_original",
                             "woz_error1_modified", "woz_error2_inserted",
                             "confidence_score", "verification_text",
                             "counterfactual_text", "reflection_text",
                             "final_output", "scaffold1_done",
-                            "scaffold2_done", "scaffold3_done"]:
+                            "scaffold2_done", "scaffold3_done",
+                            "post_q1", "post_q2", "post_q3",
+                            "post_q4", "post_q5", "post_q6"]:
                     st.session_state[key] = defaults[key]
                 st.session_state.task_start_time = time.time()
                 st.session_state.step = "task_intro"
             else:
                 st.session_state.step = "done"
             st.rerun()
-    else:
-        st.button("제출하기 ✓", disabled=True, use_container_width=True)
 
 # ══════════════════════════════════════════════════════
-# STEP 6 — 완료
+# STEP 7 — 완료
 # ══════════════════════════════════════════════════════
 elif st.session_state.step == "done":
     show_progress(5)

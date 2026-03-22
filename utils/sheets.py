@@ -20,6 +20,7 @@ COLUMNS = [
     "counterfactual_text", "reflection_text", "final_output_text",
     "uar_score", "vaf_score", "ri_score", "cag_score",
     "session_duration_seconds",
+    "post_q1", "post_q2", "post_q3", "post_q4", "post_q5", "post_q6",
 ]
 
 
@@ -52,3 +53,25 @@ def load_all_data() -> list[dict]:
     ws = get_sheet()
     records = ws.get_all_records()
     return records
+
+
+def update_post_survey(participant_id: int, task_number: int,
+                       q1: int, q2: int, q3: int, q4: int, q5: int, q6: str):
+    """사후 질문 응답을 해당 행에 업데이트"""
+    ws = get_sheet()
+    records = ws.get_all_records()
+    for i, row in enumerate(records):
+        if (str(row.get("participant_id")) == str(participant_id) and
+                str(row.get("task_number")) == str(task_number)):
+            row_index = i + 2  # 헤더 포함 1-indexed
+            # 사후질문 컬럼 위치 찾기
+            header = ws.row_values(1)
+            updates = {
+                "post_q1": q1, "post_q2": q2, "post_q3": q3,
+                "post_q4": q4, "post_q5": q5, "post_q6": q6
+            }
+            for col_name, val in updates.items():
+                if col_name in header:
+                    col_idx = header.index(col_name) + 1
+                    ws.update_cell(row_index, col_idx, str(val))
+            break
