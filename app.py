@@ -298,10 +298,17 @@ elif st.session_state.step == "pre_framing":
     - 어떤 **서비스 개입 지점**이 가장 효과적일 것 같나요?
     """)
 
+    _placeholder_pre = (
+        "예) VELOX의 핵심 문제는 과잉 생산으로 인한 탄소 배출 증가이며, "
+        "소비자 행동 변화와 생산 구조 개혁이 동시에 필요한 구조적 문제입니다..."
+        if task_num_pre == 1 else
+        "예) NOVA의 핵심 문제는 수리 불가능 설계로 인한 전자 폐기물 급증이며, "
+        "EU 수리권 법제화 압박과 소비자 인식 변화가 맞물린 구조적 전환점에 있습니다..."
+    )
     text = st.text_area(
         f"초기 분석 ({MIN_PRE_CHARS}자 이상)",
         height=200,
-        placeholder="예) VELOX의 핵심 문제는 과잉 생산으로 인한 탄소 배출 증가이며, 이는 소비자 행동 변화와 생산 구조 개혁이 동시에 필요한 구조적 문제입니다...",
+        placeholder=_placeholder_pre,
         value=st.session_state.pre_framing
     )
     char_count = len(text)
@@ -340,26 +347,28 @@ elif st.session_state.step == "free_chat":
     배경 자료에서 궁금한 점, 데이터의 의미, 이해관계자 관계 등 무엇이든 질문할 수 있습니다.
     """)
 
-    # 타이머 시작
-    if "chat_timer_start" not in st.session_state:
+    # 타이머 시작 시각 기록 (최초 1회만)
+    if "chat_timer_start" not in st.session_state or st.session_state.get("chat_timer_task") != task_num:
         st.session_state.chat_timer_start = time.time()
+        st.session_state.chat_timer_task = task_num  # task별 타이머 구분
 
     elapsed = int(time.time() - st.session_state.chat_timer_start)
     remaining = max(0, CHAT_SECONDS - elapsed)
-    mins, secs = divmod(remaining, 60)
+    timer_done = remaining == 0
+
+    # 타이머 상태 표시
+    if not timer_done:
+        mins, secs = divmod(remaining, 60)
+        st.info(f"⏱️ 자유 탐색 시간: {mins}분 {secs:02d}초 남음 — 자유롭게 질문하세요.")
+    else:
+        st.success("✅ 탐색 시간이 완료되었습니다. 다음 단계로 이동할 수 있습니다.")
 
     # 대화 이력 표시
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # 타이머 상태 표시
-    if remaining > 0:
-        st.info(f"⏱️ 자유 탐색 시간: {mins}분 {secs:02d}초 남음 — 자유롭게 질문하세요.")
-    else:
-        st.success("✅ 탐색 시간이 완료되었습니다. 다음 단계로 이동할 수 있습니다.")
-
-    # 채팅 입력 (타이머 종료 전후 모두 가능)
+    # 채팅 입력 (타이머 전후 모두 가능)
     user_input = st.chat_input("질문이나 아이디어를 입력하세요...")
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
@@ -373,23 +382,20 @@ elif st.session_state.step == "free_chat":
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.rerun()
 
-    # 타이머 자동 갱신 (타이머 진행 중일 때)
-    if remaining > 0:
-        time.sleep(1)
-        st.rerun()
-
-    # 다음 단계 버튼 (3분 경과 후 활성화)
     st.divider()
-    if remaining == 0:
+
+    # 다음 단계 버튼
+    if timer_done:
         if st.button("탐색 완료 → AI 최종 분석 받기",
                      use_container_width=True, type="primary"):
             del st.session_state.chat_timer_start
+            if "chat_timer_task" in st.session_state:
+                del st.session_state.chat_timer_task
             with st.spinner("AI 최종 분석 생성 중..."):
-                from utils.claude_api import get_ai_response, apply_woz, get_free_chat_response
                 original = get_ai_response(
                     st.session_state.pre_framing, task_num)
                 st.session_state.ai_response_original = original
-                displayed, e1_orig, e1_mod, e2 = apply_woz(original)
+                displayed, e1_orig, e1_mod, e2 = apply_woz(original, task_num)
                 st.session_state.ai_response_displayed = displayed
                 st.session_state.woz_error1_original = e1_orig
                 st.session_state.woz_error1_modified = e1_mod
@@ -399,7 +405,11 @@ elif st.session_state.step == "free_chat":
     else:
         st.button("탐색 완료 → AI 최종 분석 받기",
                   disabled=True, use_container_width=True)
-        st.caption("⚠️ 3분 탐색 시간이 끝나면 자동으로 활성화됩니다.")
+        st.caption(f"⚠️ {remaining}초 후 활성화됩니다.")
+        # 타이머 자동 갱신 — 채팅 입력이 없을 때만
+        if not user_input:
+            time.sleep(1)
+            st.rerun()
 
 elif st.session_state.step == "ai_response":
     show_progress(3)
@@ -714,7 +724,13 @@ elif st.session_state.step == "final_output":
         final = st.text_area(
             "최종 제안",
             height=280,
-            placeholder="예) VELOX의 핵심 문제는 연간 4,200만 벌 생산 중 40%가 소각되는 과잉 생산 구조입니다. 이는 단순한 환경 문제가 아니라...",
+            placeholder=(
+                "예) VELOX의 핵심 문제는 연간 4,200만 벌 생산 중 40%가 소각되는 "
+                "과잉 생산 구조입니다. 이는 단순한 환경 문제가 아니라..."
+                if task_num_f == 1 else
+                "예) NOVA의 핵심 문제는 수리 불가능 설계로 연간 수백만 대가 조기 폐기되는 "
+                "구조적 낭비입니다. 이는 제조사의 의도적 설계 선택과 맞닿아 있으며..."
+            ),
             value=st.session_state.final_output,
             label_visibility="collapsed"
         )
@@ -845,6 +861,8 @@ elif st.session_state.step == "post_survey":
                 # chat_timer_start는 key-value reset 전에 별도 삭제
                 if "chat_timer_start" in st.session_state:
                     del st.session_state.chat_timer_start
+                if "chat_timer_task" in st.session_state:
+                    del st.session_state.chat_timer_task
                 for key in ["pre_framing", "ai_response_original",
                             "ai_response_displayed", "woz_error1_original",
                             "woz_error1_modified", "woz_error2_inserted",
