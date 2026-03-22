@@ -527,8 +527,9 @@ elif st.session_state.step == "final_output":
                 "student_name": st.session_state.student_name,
                 "student_number": st.session_state.student_number,
                 "condition": st.session_state.condition,
+                "condition_order": "B→A" if st.session_state.participant_id % 2 == 0 else "A→B",
                 "task_number": st.session_state.task_number,
-                "brand": get_brand(st.session_state.participant_id, st.session_state.task_number),
+                "task_domain": get_brand(st.session_state.participant_id, st.session_state.task_number),
                 "pre_framing_text": st.session_state.pre_framing,
                 "pre_framing_length": len(st.session_state.pre_framing),
                 "ai_response_original": st.session_state.ai_response_original,
@@ -544,7 +545,7 @@ elif st.session_state.step == "final_output":
                 "uar_score": scores["uar"],
                 "vaf_score": scores["vaf"],
                 "ri_score": scores["ri"],
-                "cag_score": scores["cag"],
+                "csg_score": scores["cag"],
                 "session_duration_seconds": duration,
             }
 

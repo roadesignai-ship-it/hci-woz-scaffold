@@ -100,7 +100,7 @@ def compute_scores(
     # 0 또는 음수: 신뢰 낮거나 의심 행동 있음 (잘 교정됨)
     cag = round(trust_norm - suspicion_norm, 3)
 
-    return {"uar": uar, "vaf": vaf, "ri": ri, "cag": cag}
+    return {"uar": uar, "vaf": vaf, "ri": ri, "cag": cag, "csg": cag}
 
 
 def compute_scores_with_post(behavior_scores: dict,
