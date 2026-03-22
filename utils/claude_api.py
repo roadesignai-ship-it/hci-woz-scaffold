@@ -2,10 +2,18 @@ import re
 import streamlit as st
 import anthropic
 
-SYSTEM_PROMPT = """당신은 패션 산업의 지속가능성 전문 컨설턴트입니다.
-서비스 디자인 학생이 Fast Fashion 브랜드의 지속가능성 전환 서비스를 설계하도록 돕고 있습니다.
+SYSTEM_PROMPT_TASK1 = """당신은 패션 산업의 지속가능성 전문 컨설턴트입니다.
+서비스 디자인 학생이 Fast Fashion 브랜드 VELOX의 지속가능성 전환 서비스를 설계하도록 돕고 있습니다.
 다음 조건을 반드시 지키세요:
 1. 응답에 구체적인 통계 수치를 반드시 3개 이상 포함하세요 (퍼센트, 톤, 달러 등).
+2. 관련 보고서나 기관 데이터를 최소 1개 인용하세요.
+3. 이해관계자별 서비스 개입 지점을 구체적으로 제안하세요.
+4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요."""
+
+SYSTEM_PROMPT_TASK2 = """당신은 전자 산업의 지속가능성 및 순환경제 전문 컨설턴트입니다.
+서비스 디자인 학생이 전자기기 브랜드 NOVA의 전자 폐기물 문제 해결 서비스를 설계하도록 돕고 있습니다.
+다음 조건을 반드시 지키세요:
+1. 응답에 구체적인 통계 수치를 반드시 3개 이상 포함하세요 (퍼센트, 톤, 점수 등).
 2. 관련 보고서나 기관 데이터를 최소 1개 인용하세요.
 3. 이해관계자별 서비스 개입 지점을 구체적으로 제안하세요.
 4. 응답은 한국어로 작성하고 3~4개 단락으로 구성하세요."""
@@ -21,13 +29,14 @@ FAKE_SOURCE = (
 )
 
 
-def get_ai_response(user_text: str) -> str:
-    """Claude API 호출 - 두 조건 모두 동일한 호출"""
+def get_ai_response(user_text: str, task_number: int = 1) -> str:
+    """Claude API 호출 - task_number에 따라 system prompt 분기"""
+    system = SYSTEM_PROMPT_TASK1 if task_number == 1 else SYSTEM_PROMPT_TASK2
     client = anthropic.Anthropic(api_key=st.secrets["anthropic_api_key"])
     message = client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=1200,
-        system=SYSTEM_PROMPT,
+        system=system,
         messages=[{"role": "user", "content": user_text}]
     )
     return message.content[0].text

@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # ── 시간 설정 (분 단위 조정 가능) ─────────────────────
-TASK_READ_SECONDS = 300   # 과제+배경자료 읽기: 5분
+TASK_READ_SECONDS = 180   # 과제+배경자료 읽기: 3분
 MIN_PRE_CHARS     = 80    # Pre-framing 최소 글자
 MIN_FINAL_CHARS   = 80    # 최종 제안 최소 글자
 MIN_VERIF_CHARS   = 20    # scaffold1 최소 글자
@@ -41,12 +41,14 @@ def show_progress(step_index):
                     unsafe_allow_html=True)
     st.divider()
 
-# ── Between-subject 조건 결정 ──────────────────────────
-# 1반 (번호 1~20)  → Condition B: Scaffolded
-# 2반 (번호 21~40) → Condition A: Baseline
-# 두 조건 모두 동일한 WoZ 오류 포함 AI 응답
-def get_condition(pid: int) -> str:
-    return "B" if pid <= 20 else "A"
+# ── Within-subject 조건 결정 ───────────────────────────
+# 홀수 번호: Task1=A → Task2=B
+# 짝수 번호: Task1=B → Task2=A  (counterbalancing)
+def get_condition(pid: int, task_number: int) -> str:
+    if pid % 2 == 1:  # 홀수
+        return "A" if task_number == 1 else "B"
+    else:             # 짝수
+        return "B" if task_number == 1 else "A"
 
 # ── session_state 초기화 ───────────────────────────────
 defaults = {
@@ -54,6 +56,7 @@ defaults = {
     "participant_id": None,
     "student_name": "",
     "student_number": "",
+    "task_number": 1,
     "condition": None,
     "pre_framing": "",
     "ai_response_original": "",
@@ -117,7 +120,8 @@ if st.session_state.step == "start":
                 st.session_state.participant_id = int(pid)
                 st.session_state.student_name = name.strip()
                 st.session_state.student_number = student_num.strip()
-                st.session_state.condition = get_condition(int(pid))
+                st.session_state.task_number = 1
+                st.session_state.condition = get_condition(int(pid), 1)
                 st.session_state.task_start_time = time.time()
                 st.session_state.step = "task_intro"
                 st.rerun()
@@ -127,67 +131,121 @@ if st.session_state.step == "start":
 # ══════════════════════════════════════════════════════
 elif st.session_state.step == "task_intro":
     show_progress(1)
-    st.subheader("📋 과제 안내 및 배경 자료")
+    task_num = st.session_state.task_number
+    cond = st.session_state.condition
+    st.subheader(f"📋 과제 {task_num}/2 안내 및 배경 자료")
+    st.caption(f"{'첫 번째' if task_num == 1 else '두 번째'} 과제입니다. "
+               f"조건: {'기본 인터페이스' if cond == 'A' else '심화 인터페이스'}")
 
-    # ── 기사 형식 배경 자료 ─────────────────────────────
-    st.markdown("""
-    #### 📰 [업계 리포트] VELOX, 성장의 이면에 드리운 지속가능성 위기
-    *2024년 패션 산업 지속가능성 연구소(FSRI) 분기 보고서 요약*
-    """)
-
-    with st.expander("▶ 전체 기사 읽기 (클릭하여 펼치기)", expanded=True):
+    # ── 과제별 배경 자료 분기 ───────────────────────────
+    if task_num == 1:
+        # Task 1: VELOX (Fast Fashion)
         st.markdown("""
-        **글로벌 Fast Fashion 산업의 환경 위기**
+        #### 📰 [업계 리포트] VELOX, 성장의 이면에 드리운 지속가능성 위기
+        *2024년 패션 산업 지속가능성 연구소(FSRI) 분기 보고서 요약*
+        """)
+        with st.expander("▶ 전체 기사 읽기 (클릭하여 펼치기)", expanded=True):
+            st.markdown("""
+            **글로벌 Fast Fashion 산업의 환경 위기**
 
-        전 세계 패션 산업은 매년 약 920억 벌의 의류를 생산하며, 이 중 약 30%가 팔리지 않은 채 폐기된다.
-        패션 산업이 배출하는 온실가스는 전 세계 총배출량의 약 10%에 달하며, 이는 국제 항공과 해운을 합친 것보다 많다.
-        의류 1kg을 생산하는 데 평균 약 10,000리터의 물이 소비되고, 전 세계 폐수의 약 20%가 직물 염색 및 처리 과정에서 발생한다.
-        패션 산업에서 사용되는 합성섬유는 세탁 시 매년 약 50만 톤의 미세플라스틱을 해양에 방류하는 것으로 추정된다.
+            전 세계 패션 산업은 매년 약 920억 벌의 의류를 생산하며, 이 중 약 30%가 팔리지 않은 채 폐기된다.
+            패션 산업이 배출하는 온실가스는 전 세계 총배출량의 약 10%에 달하며, 이는 국제 항공과 해운을 합친 것보다 많다.
+            의류 1kg을 생산하는 데 평균 약 10,000리터의 물이 소비되고, 전 세계 폐수의 약 20%가 직물 염색 및 처리 과정에서 발생한다.
+            패션 산업에서 사용되는 합성섬유는 세탁 시 매년 약 50만 톤의 미세플라스틱을 해양에 방류하는 것으로 추정된다.
 
-        **VELOX의 현황과 사업 구조**
+            **VELOX의 현황과 사업 구조**
 
-        VELOX는 2008년 설립된 가상의 글로벌 Fast Fashion 브랜드로, 연간 약 4,200만 벌의 의류를 생산한다.
-        주요 소비층은 18~35세이며, 전체 매출의 72%가 온라인 채널에서 발생한다.
-        생산 기지는 방글라데시, 베트남, 캄보디아에 집중되어 있으며, 협력 공장 노동자의 평균 시급은 해당 국가 최저임금 수준인 약 0.85~1.2달러이다.
-        VELOX의 컬렉션 출시 주기는 연 52회로, 매주 신상품이 업데이트되며 평균 제품 수명 주기는 3~4주이다.
-        반품된 의류의 약 40%는 재판매가 아닌 소각 또는 매립 처리되고 있으며, 이 사실이 최근 환경 단체 조사를 통해 공개되어 논란이 되고 있다.
+            VELOX는 2008년 설립된 가상의 글로벌 Fast Fashion 브랜드로, 연간 약 4,200만 벌의 의류를 생산한다.
+            주요 소비층은 18~35세이며, 전체 매출의 72%가 온라인 채널에서 발생한다.
+            생산 기지는 방글라데시, 베트남, 캄보디아에 집중되어 있으며, 협력 공장 노동자의 평균 시급은 약 0.85~1.2달러이다.
+            VELOX의 컬렉션 출시 주기는 연 52회이며, 반품된 의류의 약 40%는 소각 또는 매립 처리된다.
 
-        **이해관계자 반응과 압력**
+            **이해관계자 반응과 압력**
 
-        국제 환경단체 GreenWear는 지난 3월 VELOX 본사 앞에서 대규모 시위를 열고, "VELOX는 지구를 소각하는 브랜드"라는 캠페인을 전개했다.
-        소비자 단체 설문에 따르면 VELOX 주요 소비층의 61%가 "브랜드의 환경 정책이 개선되지 않으면 구매를 줄이겠다"고 응답했다.
-        EU는 2025년부터 패션 기업의 제품 수명 주기 데이터 공개를 의무화하는 규정을 도입할 예정이며, VELOX는 현재 이 기준을 충족하지 못하고 있다.
-        방글라데시 생산 공장 노동자 1,200명이 임금 인상 및 안전 환경 개선을 요구하며 파업을 진행한 사례가 현지 언론에 보도된 바 있다.
+            국제 환경단체 GreenWear는 VELOX를 상대로 대규모 캠페인을 전개했다.
+            소비자 단체 설문에서 VELOX 주요 소비층의 61%가 환경 정책 미개선 시 구매를 줄이겠다고 응답했다.
+            EU는 2025년부터 패션 기업의 제품 수명 주기 데이터 공개를 의무화한다.
 
-        **VELOX의 현재 대응과 한계**
+            **VELOX의 현재 대응과 한계**
 
-        VELOX는 2023년 "그린 퓨처(Green Future)" 이니셔티브를 발표하며 2030년까지 탄소 중립을 달성하겠다고 선언했다.
-        그러나 구체적인 감축 로드맵 없이 일부 제품 라인에 재활용 소재를 5~10% 혼합하는 수준에 그치고 있어, 업계 전문가들은 이를 그린워싱(greenwashing)으로 비판한다.
-        내부 문서에 따르면 VELOX의 실제 연간 탄소 배출량은 선언 이후에도 전년 대비 3% 증가한 것으로 나타났다.
+            VELOX는 2030년 탄소 중립을 선언했으나, 실제 탄소 배출량은 전년 대비 3% 증가했다.
+            일부 제품 라인에 재활용 소재를 5~10% 혼합하는 수준으로 그린워싱 비판을 받고 있다.
+            """)
+        st.divider()
+        st.markdown("**주요 이해관계자**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            - 💰 **소비자**: 가격 민감, 트렌드 추구, 환경 인식 증가
+            - 🏭 **생산 노동자**: 저임금(시급 $0.85~1.2), 劣악한 환경
+            """)
+        with col2:
+            st.markdown("""
+            - 📣 **마케팅팀**: 매출 압박, 브랜드 이미지 위기
+            - 🌿 **환경 NGO**: 투명성 요구, 그린워싱 비판
+            """)
+        st.divider()
+        st.markdown("""
+        ### 과제
+        위 배경 자료를 바탕으로, AI의 데이터 분석을 참고하여
+        **VELOX가 지속가능성으로 전환하기 위한 서비스 시스템을 제안**하세요.
         """)
 
-    st.divider()
-
-    # ── 이해관계자 요약 ─────────────────────────────────
-    st.markdown("**주요 이해관계자 요약**")
-    col1, col2 = st.columns(2)
-    with col1:
+    else:
+        # Task 2: NOVA (전자 폐기물)
         st.markdown("""
-        - 💰 **소비자**: 가격 민감, 트렌드 추구, 환경 인식 증가
-        - 🏭 **생산 노동자**: 저임금(시급 $0.85~1.2), 劣악한 환경, 파업
+        #### 📰 [업계 리포트] NOVA, 전자 폐기물의 그늘 속에서 성장하는 테크 브랜드
+        *2024년 글로벌 전자산업 지속가능성 연구센터(GESC) 분기 보고서 요약*
         """)
-    with col2:
-        st.markdown("""
-        - 📣 **마케팅팀**: 매출 압박, 브랜드 이미지 위기
-        - 🌿 **환경 NGO**: 투명성 요구, 그린워싱 비판
-        """)
+        with st.expander("▶ 전체 기사 읽기 (클릭하여 펼치기)", expanded=True):
+            st.markdown("""
+            **글로벌 전자 폐기물(E-Waste) 위기**
 
-    st.divider()
-    st.markdown("""
-    ### 과제
-    위 배경 자료를 바탕으로, AI의 데이터 분석을 참고하여  
-    **VELOX가 지속가능성으로 전환하기 위한 서비스 시스템을 제안**하세요.
-    """)
+            전 세계에서 매년 약 5,740만 톤의 전자 폐기물이 발생하며, 이는 역대 최고치다.
+            전자 폐기물의 약 83%가 비공식 경로로 처리되며, 납·수은·카드뮴 등 유해물질이 토양과 수질을 오염시킨다.
+            스마트폰 한 대를 생산하는 데 약 70kg의 원자재가 사용되며, 그 중 희토류는 채굴 과정에서 심각한 환경 파괴를 일으킨다.
+            전자기기의 평균 사용 수명은 2000년 대비 절반 수준으로 단축되었으며, 계획적 진부화(planned obsolescence)가 주요 원인으로 지목된다.
+
+            **NOVA의 현황과 사업 구조**
+
+            NOVA는 2012년 설립된 가상의 소비자 전자기기 브랜드로, 연간 약 1,200만 대의 스마트폰·태블릿·노트북을 판매한다.
+            주요 소비층은 20~40세 도시 직장인이며, 평균 제품 교체 주기는 18개월이다.
+            부품 조립은 인도네시아, 멕시코, 폴란드의 협력 공장에서 이루어지며, 광물 채굴은 콩고민주공화국과 칠레에서 하청된다.
+            NOVA 제품의 수리 가능성 점수(Repairability Index)는 10점 만점에 3.2점으로 업계 최하위권이다.
+            회수된 기기의 재활용률은 약 18%에 불과하며, 나머지는 소비자가 임의 폐기한다.
+
+            **이해관계자 반응과 압력**
+
+            국제 환경단체 E-Watch는 NOVA를 "수리 불가능 설계로 폐기물을 양산하는 브랜드" 1위로 선정했다.
+            EU 집행위원회는 2026년부터 전자기기 제조사에 10년간 부품 공급 의무와 수리권(Right to Repair)을 법제화할 예정이다.
+            콩고민주공화국 광산 인근 주민 단체가 NOVA의 공급망 투명성 부재를 국제기구에 제소했다.
+            소비자 조사에서 NOVA 구매자의 54%가 "수리 서비스가 있다면 기기를 3년 이상 사용하겠다"고 응답했다.
+
+            **NOVA의 현재 대응과 한계**
+
+            NOVA는 2023년 "GreenCircle" 프로그램을 출시하며 2035년까지 탄소 중립과 재활용률 50% 달성을 약속했다.
+            그러나 현재 운영되는 공식 수거함은 전국 12개 매장에 불과하며, 실질적 재활용률 개선은 미미하다.
+            수리 부품 공급을 의도적으로 제한하는 정책을 유지하고 있어 독립 수리업체와의 분쟁이 계속되고 있다.
+            """)
+        st.divider()
+        st.markdown("**주요 이해관계자**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            - 💻 **소비자**: 최신 기기 선호, 수리 의향 있음
+            - 🔧 **독립 수리업체**: 부품 공급 차단으로 생존 위협
+            """)
+        with col2:
+            st.markdown("""
+            - 📣 **마케팅팀**: 프리미엄 이미지, ESG 압박
+            - 🌿 **환경 NGO**: 수리권 입법 요구, 공급망 투명성
+            """)
+        st.divider()
+        st.markdown("""
+        ### 과제
+        위 배경 자료를 바탕으로, AI의 데이터 분석을 참고하여
+        **NOVA가 전자 폐기물 문제를 해결하기 위한 지속가능한 서비스 시스템을 제안**하세요.
+        """)
 
     if "countdown_start" not in st.session_state:
         st.session_state.countdown_start = time.time()
@@ -239,7 +297,7 @@ elif st.session_state.step == "pre_framing":
         if st.button("AI 피드백 받기 →", use_container_width=True, type="primary"):
             st.session_state.pre_framing = text
             with st.spinner("AI 분석 중... (10~20초 소요)"):
-                original = get_ai_response(text)
+                original = get_ai_response(text, st.session_state.task_number)
                 st.session_state.ai_response_original = original
                 displayed, e1_orig, e1_mod, e2 = apply_woz(original)
                 st.session_state.ai_response_displayed = displayed
@@ -259,95 +317,287 @@ elif st.session_state.step == "ai_response":
     condition = st.session_state.condition
     st.subheader("2단계: AI 피드백 검토")
 
-    with st.expander("💬 AI 분석 결과", expanded=True):
-        st.markdown(st.session_state.ai_response_displayed)
-
-    st.divider()
-
-    # ── Condition A: scaffold 없이 바로 진행 ──────────
+    # ── Condition A: 일반 텍스트로 표시, scaffold 없음 ──
     if condition == "A":
+        with st.expander("💬 AI 분석 결과", expanded=True):
+            st.markdown(st.session_state.ai_response_displayed)
+        st.divider()
         st.markdown("AI 분석을 검토한 후 최종 제안을 작성해 주세요.")
         if st.button("최종 제안 작성 →", use_container_width=True, type="primary"):
             st.session_state.step = "final_output"
             st.rerun()
 
-    # ── Condition B: scaffold 3개 순서대로 ───────────
+    # ── Condition B: 인라인 friction 3종 내장 ──────────
     else:
-        st.markdown("#### 📝 아래 세 항목을 순서대로 완료해 주세요")
+        import streamlit.components.v1 as components
 
-        # Scaffold 1 — Confidence Calibration
-        with st.container(border=True):
-            st.markdown("**[1/3] 신뢰도 평가**")
-            conf = st.slider(
-                "AI 분석을 얼마나 신뢰하시나요?",
-                min_value=1, max_value=5,
-                value=st.session_state.confidence_score,
-                format="%d점"
+        ai_text = st.session_state.ai_response_displayed
+        woz_num = st.session_state.woz_error1_modified  # 변조된 수치 (예: "4%")
+
+        # 변조 수치를 노란색 하이라이트로 표시
+        import re
+        highlighted = ai_text
+        if woz_num:
+            highlighted = re.sub(
+                re.escape(woz_num),
+                f'<mark class="woz-mark">{woz_num}</mark>',
+                highlighted
             )
-            st.caption("1 = 전혀 신뢰 안함 / 5 = 완전히 신뢰")
-            verif = st.text_area(
-                f"검증이 필요한 수치나 출처를 적어주세요 ({MIN_VERIF_CHARS}자 이상)",
-                height=80,
-                value=st.session_state.verification_text,
-                key="verif_area"
-            )
-            if len(verif) >= MIN_VERIF_CHARS:
-                st.session_state.confidence_score = conf
-                st.session_state.verification_text = verif
-                st.session_state.scaffold1_done = True
-                st.success("✅ 완료")
-            else:
-                st.caption(f"{len(verif)}자 / {MIN_VERIF_CHARS}자")
 
-        # Scaffold 2 — Counterfactual Challenge
-        with st.container(border=True):
-            st.markdown("**[2/3] 대안적 해석**")
-            if not st.session_state.scaffold1_done:
-                st.caption("⬆️ [1/3]을 먼저 완료해 주세요.")
-            else:
-                counter = st.text_area(
-                    f"AI와 다른 대안적 서비스 방향을 작성해 주세요 ({MIN_COUNTER_CHARS}자 이상)",
-                    height=100,
-                    value=st.session_state.counterfactual_text,
-                    key="counter_area"
-                )
-                if len(counter) >= MIN_COUNTER_CHARS:
-                    st.session_state.counterfactual_text = counter
-                    st.session_state.scaffold2_done = True
-                    st.success("✅ 완료")
-                else:
-                    st.caption(f"{len(counter)}자 / {MIN_COUNTER_CHARS}자")
+        # 단락 분리
+        paragraphs = highlighted.strip().split('
 
-        # Scaffold 3 — Reflection
-        with st.container(border=True):
-            st.markdown("**[3/3] 비교 성찰**")
-            if not st.session_state.scaffold2_done:
-                st.caption("⬆️ [2/3]을 먼저 완료해 주세요.")
-            else:
-                reflection = st.text_area(
-                    f"처음 분석과 AI 응답의 가장 큰 차이점은? ({MIN_REFLECT_CHARS}자 이상)",
-                    height=80,
-                    value=st.session_state.reflection_text,
-                    key="reflect_area"
-                )
-                if len(reflection) >= MIN_REFLECT_CHARS:
-                    st.session_state.reflection_text = reflection
-                    st.session_state.scaffold3_done = True
-                    st.success("✅ 완료")
-                else:
-                    st.caption(f"{len(reflection)}자 / {MIN_REFLECT_CHARS}자")
+')
+        mid = max(1, len(paragraphs) // 2)
+        first_half = '
 
-        st.divider()
-        all_done = (st.session_state.scaffold1_done and
-                    st.session_state.scaffold2_done and
-                    st.session_state.scaffold3_done)
-        if all_done:
+'.join(paragraphs[:mid])
+        second_half = '
+
+'.join(paragraphs[mid:])
+
+        # ── inline friction HTML 컴포넌트 ──────────────
+        friction_html = f"""
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>
+          body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            line-height: 1.75;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+          }}
+          .ai-box {{
+            background: #f8f9fa;
+            border-left: 3px solid #1D9E75;
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+          }}
+          mark.woz-mark {{
+            background: #fff3cd;
+            color: #856404;
+            border-radius: 3px;
+            padding: 1px 3px;
+            cursor: pointer;
+            border-bottom: 2px dashed #e6a817;
+          }}
+          mark.woz-mark:hover::after {{
+            content: " ⚠️ 이 수치를 검증하셨나요?";
+            background: #fff3cd;
+            color: #856404;
+            font-size: 11px;
+            border: 1px solid #e6a817;
+            border-radius: 4px;
+            padding: 2px 6px;
+            margin-left: 6px;
+          }}
+          .friction-gate {{
+            background: #eef2fa;
+            border: 1px solid #c5d0e8;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin: 14px 0;
+          }}
+          .friction-gate p {{
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: #2c3e6b;
+            font-weight: 500;
+          }}
+          .radio-group {{
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+          }}
+          .radio-group label {{
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #333;
+            background: #fff;
+            border: 1px solid #c5d0e8;
+            border-radius: 20px;
+            padding: 5px 12px;
+            transition: all 0.15s;
+          }}
+          .radio-group label:hover {{
+            background: #dde5f7;
+          }}
+          .radio-group input[type=radio] {{
+            accent-color: #1F3864;
+          }}
+          .scroll-gate {{
+            background: #fff8e1;
+            border: 1px solid #f9c74f;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin: 12px 0;
+            font-size: 12px;
+            color: #7d5a00;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }}
+          .scroll-gate.hidden {{ display: none; }}
+          #done-btn {{
+            background: #1F3864;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 0;
+            width: 100%;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 14px;
+            cursor: pointer;
+            opacity: 0.4;
+            pointer-events: none;
+            transition: opacity 0.2s;
+          }}
+          #done-btn.active {{
+            opacity: 1;
+            pointer-events: auto;
+          }}
+        </style>
+        </head>
+        <body>
+
+        <div class="ai-box" id="ai-content">
+          <div id="first-half">{first_half}</div>
+
+          <!-- friction 1: 인라인 마이크로 프롬프트 (응답 중간 삽입) -->
+          <div class="friction-gate" id="gate1">
+            <p>💬 지금까지 읽은 내용에서 <strong>의심되거나 확인이 필요한 부분</strong>이 있나요?</p>
+            <div class="radio-group">
+              <label><input type="radio" name="gate1" value="yes" onchange="checkGate1(this)"> 있다</label>
+              <label><input type="radio" name="gate1" value="no" onchange="checkGate1(this)"> 없다</label>
+              <label><input type="radio" name="gate1" value="unsure" onchange="checkGate1(this)"> 잘 모르겠다</label>
+            </div>
+          </div>
+
+          <div id="second-half" style="opacity:0.3; pointer-events:none;">{second_half}</div>
+        </div>
+
+        <!-- friction 2: 스크롤 게이트 -->
+        <div class="scroll-gate" id="scroll-gate">
+          ⬇️ 응답을 끝까지 읽어주세요. 읽기 완료 후 다음 단계가 활성화됩니다.
+        </div>
+
+        <!-- friction 3: 최종 확인 -->
+        <div class="friction-gate" id="gate2" style="display:none;">
+          <p>🔍 AI가 인용한 통계나 출처 중 <strong>직접 검색해서 확인하고 싶은 것</strong>이 있나요?</p>
+          <div class="radio-group">
+            <label><input type="radio" name="gate2" value="yes" onchange="checkGate2(this)"> 있다</label>
+            <label><input type="radio" name="gate2" value="no" onchange="checkGate2(this)"> 없다</label>
+          </div>
+        </div>
+
+        <button id="done-btn" onclick="submitDone()">최종 제안 작성 →</button>
+
+        <script>
+          var gate1Answered = false;
+          var gate2Answered = false;
+          var scrollDone = false;
+          var gate1Value = "";
+          var gate2Value = "";
+
+          function checkGate1(el) {{
+            gate1Value = el.value;
+            gate1Answered = true;
+            // 두 번째 반 활성화
+            document.getElementById('second-half').style.opacity = '1';
+            document.getElementById('second-half').style.pointerEvents = 'auto';
+            // 스크롤 감지 시작
+            checkScroll();
+          }}
+
+          function checkScroll() {{
+            var content = document.getElementById('ai-content');
+            var scrollGate = document.getElementById('scroll-gate');
+            if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 60) {{
+              onScrollDone();
+            }} else {{
+              window.addEventListener('scroll', function handler() {{
+                if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 60) {{
+                  window.removeEventListener('scroll', handler);
+                  onScrollDone();
+                }}
+              }});
+            }}
+          }}
+
+          function onScrollDone() {{
+            scrollDone = true;
+            document.getElementById('scroll-gate').classList.add('hidden');
+            document.getElementById('gate2').style.display = 'block';
+          }}
+
+          function checkGate2(el) {{
+            gate2Value = el.value;
+            gate2Answered = true;
+            tryActivateBtn();
+          }}
+
+          function tryActivateBtn() {{
+            if (gate1Answered && scrollDone && gate2Answered) {{
+              document.getElementById('done-btn').classList.add('active');
+            }}
+          }}
+
+          function submitDone() {{
+            window.parent.postMessage({{
+              type: 'friction_done',
+              gate1: gate1Value,
+              gate2: gate2Value
+            }}, '*');
+          }}
+        </script>
+        </body>
+        </html>
+        """
+
+        # friction 컴포넌트 렌더링
+        components.html(friction_html, height=700, scrolling=True)
+
+        # postMessage 수신 → 세션 상태 업데이트
+        st.caption("💡 AI 응답을 읽으며 중간 질문에 답하고, 끝까지 스크롤하면 다음 단계가 활성화됩니다.")
+
+        # JavaScript → Streamlit 통신: query param 방식
+        import urllib.parse
+        params = st.query_params
+        if params.get("friction_done") == "1":
+            st.session_state.verification_text = params.get("gate1", "")
+            st.session_state.reflection_text = params.get("gate2", "")
+            st.session_state.scaffold1_done = True
+            st.session_state.scaffold2_done = True
+            st.session_state.scaffold3_done = True
+
+        # 완료 버튼 (JS에서 query param 세팅 후 Streamlit이 감지)
+        st.markdown("""
+        <script>
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'friction_done') {
+                var url = new URL(window.location.href);
+                url.searchParams.set('friction_done', '1');
+                url.searchParams.set('gate1', e.data.gate1);
+                url.searchParams.set('gate2', e.data.gate2);
+                window.location.href = url.toString();
+            }
+        });
+        </script>
+        """, unsafe_allow_html=True)
+
+        if st.session_state.scaffold1_done:
             if st.button("최종 제안 작성 →", use_container_width=True, type="primary"):
+                st.query_params.clear()
                 st.session_state.step = "final_output"
                 st.rerun()
-        else:
-            st.button("최종 제안 작성 →", disabled=True, use_container_width=True)
-            st.caption("⚠️ 세 항목을 모두 완료해야 합니다.")
 
 # ══════════════════════════════════════════════════════
 # STEP 5 — 최종 제안 작성 (목표 7분)
@@ -408,6 +658,7 @@ elif st.session_state.step == "final_output":
                 "student_name": st.session_state.student_name,
                 "student_number": st.session_state.student_number,
                 "condition": st.session_state.condition,
+                "task_number": st.session_state.task_number,
                 "pre_framing_text": st.session_state.pre_framing,
                 "pre_framing_length": len(st.session_state.pre_framing),
                 "ai_response_original": st.session_state.ai_response_original,
@@ -430,7 +681,24 @@ elif st.session_state.step == "final_output":
             with st.spinner("저장 중..."):
                 save_to_sheets(row)
 
-            st.session_state.step = "done"
+            # within-subject: Task1 완료 → Task2로 전환
+            if st.session_state.task_number == 1:
+                st.session_state.task_number = 2
+                st.session_state.condition = get_condition(
+                    st.session_state.participant_id, 2)
+                # Task2용 상태 초기화 (개인 정보는 유지)
+                for key in ["pre_framing", "ai_response_original",
+                            "ai_response_displayed", "woz_error1_original",
+                            "woz_error1_modified", "woz_error2_inserted",
+                            "confidence_score", "verification_text",
+                            "counterfactual_text", "reflection_text",
+                            "final_output", "scaffold1_done",
+                            "scaffold2_done", "scaffold3_done"]:
+                    st.session_state[key] = defaults[key]
+                st.session_state.task_start_time = time.time()
+                st.session_state.step = "task_intro"
+            else:
+                st.session_state.step = "done"
             st.rerun()
     else:
         st.button("제출하기 ✓", disabled=True, use_container_width=True)
@@ -444,8 +712,8 @@ elif st.session_state.step == "done":
     st.success("## 🎉 완료되었습니다!")
     duration = int(time.time() - st.session_state.task_start_time) if st.session_state.task_start_time else 0
     st.markdown(f"""
-    **{st.session_state.student_name}** ({st.session_state.student_number}) — 실험을 완료하셨습니다.  
-    참가자 번호: {st.session_state.participant_id}번 / 소요 시간: **{duration//60}분 {duration%60:02d}초**  
+    **{st.session_state.student_name}** ({st.session_state.student_number}) — 두 과제를 모두 완료하셨습니다.  
+    참가자 번호: {st.session_state.participant_id}번 / 총 소요 시간: **{duration//60}분 {duration%60:02d}초**  
     연구자에게 완료 사실을 알려주세요.
     """)
     if st.button("처음으로 (다음 참가자용)", use_container_width=True):

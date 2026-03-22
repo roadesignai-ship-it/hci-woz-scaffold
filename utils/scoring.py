@@ -33,14 +33,20 @@ def compute_scores(
     uar = round(similarity(final_output, ai_displayed), 3)
 
     # ── VAF ────────────────────────────────────────────
+    # Condition B (inline friction): gate1/gate2 응답 기반
+    # gate1 = 의심 여부 ("yes"/"no"/"unsure")
+    # gate2 = 출처 확인 의향 ("yes"/"no")
     vaf = 0
-    # 검증 텍스트 20자 이상
-    if len(verification_text) > 20:
+    if verification_text in ("yes", "unsure"):  # gate1: 의심된다/모르겠다
         vaf += 1
-    # 신뢰도 낮음 (2점 이하)
+    if len(verification_text) > 3 and verification_text not in ("yes","no","unsure"):
+        # Condition A: 텍스트 기반 검증
+        if len(verification_text) > 20:
+            vaf += 1
     if confidence_score <= 2:
         vaf += 1
-    # counterfactual에 AI 응답에 없는 고유 키워드 3개 이상
+    if reflection_text == "yes":  # gate2: 출처 확인 의향
+        vaf += 1
     if counterfactual_text:
         ai_words = set(ai_displayed.split())
         counter_words = set(counterfactual_text.split())
