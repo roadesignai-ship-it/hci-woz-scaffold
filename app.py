@@ -345,16 +345,10 @@ elif st.session_state.step == "ai_response":
             )
 
         # 단락 분리
-        paragraphs = highlighted.strip().split('
-
-')
+        paragraphs = highlighted.strip().split('\n\n')
         mid = max(1, len(paragraphs) // 2)
-        first_half = '
-
-'.join(paragraphs[:mid])
-        second_half = '
-
-'.join(paragraphs[mid:])
+        first_half = '\n\n'.join(paragraphs[:mid])
+        second_half = '\n\n'.join(paragraphs[mid:])
 
         # ── inline friction HTML 컴포넌트 ──────────────
         friction_html = f"""
