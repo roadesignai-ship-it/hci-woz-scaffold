@@ -439,74 +439,86 @@ elif st.session_state.step == "ai_response":
             st.session_state.step = "final_output"
             st.rerun()
 
-    # ── Condition B: 인라인 friction — Streamlit 네이티브 ─
+    # ── Condition B: Epistemic Friction ─────────────────
     else:
         import re
         ai_text = st.session_state.ai_response_displayed
         woz_num = st.session_state.woz_error1_modified
 
-        # ① 변조 수치 하이라이트 (HTML 표시용)
+        # AI 응답 표시 (수치 하이라이트 포함)
         highlighted = ai_text
         if woz_num:
             highlighted = re.sub(
                 re.escape(woz_num),
-                f'<span style="background:#fff3cd;color:#856404;padding:1px 4px;'
-                f'border-radius:3px;border-bottom:2px dashed #e6a817;">'
+                f'<span style="background:#fff3cd;color:#856404;padding:2px 5px;'
+                f'border-radius:3px;border-bottom:2px dashed #e6a817;font-weight:600;">'
                 f'⚠️ {woz_num}</span>',
                 highlighted
             )
-
-        # 단락 분리
-        paragraphs = highlighted.strip().split('\n\n')
-        mid = max(1, len(paragraphs) // 2)
-        first_half = '<br><br>'.join(paragraphs[:mid])
-        second_half = '<br><br>'.join(paragraphs[mid:])
-
-        # AI 응답 전반부 표시
         st.markdown("**💬 AI 분석 결과**")
         st.markdown(
             f'<div style="background:#f8f9fa;border-left:3px solid #1D9E75;'
-            f'border-radius:0 8px 8px 0;padding:16px 20px;line-height:1.75;">'
-            f'{first_half}</div>',
+            f'border-radius:0 8px 8px 0;padding:16px 20px;line-height:1.8;">'
+            f'{highlighted.replace(chr(10), "<br>")}</div>',
             unsafe_allow_html=True
         )
+        st.divider()
 
-        # ② friction 1 — 마이크로 프롬프트 (st.radio)
-        st.markdown("")
+        # ── Friction 1: Interruption (검증 행동 유발) ──────
+        st.markdown("**[1/3] 검증 의향** — *Interruption*")
+        st.caption("AI가 제시한 통계나 출처를 직접 검색해서 확인하고 싶은 부분이 있나요?")
+
         gate1 = st.radio(
-            "💬 지금까지 읽은 내용에서 **의심되거나 확인이 필요한 부분**이 있나요?",
-            ["선택하세요", "있다", "없다", "잘 모르겠다"],
-            index=0,
-            key="gate1_radio",
-            horizontal=True
+            "AI 응답에서 직접 검색해보고 싶은 수치나 출처가 있나요?",
+            ["선택하세요", "있다", "없다"],
+            index=0, key="gate1_radio", horizontal=True
         )
+        f1_done = gate1 != "선택하세요"
+        if f1_done:
+            if gate1 == "있다":
+                gate1_detail = st.text_input(
+                    "어떤 부분을 검색하고 싶으신가요? (간단히)",
+                    key="gate1_detail",
+                    placeholder="예) 패션 산업 탄소 배출 비율, UNEP 보고서..."
+                )
+                st.session_state.verification_text = f"있다: {gate1_detail}"
+            else:
+                st.session_state.verification_text = gate1
+            st.success("✅ 완료")
 
-        # gate1 답변 후 후반부 표시
-        if gate1 != "선택하세요":
-            st.session_state.verification_text = gate1
+        # ── Friction 2: Reflection (라디오) ──────────────
+        st.markdown("**[2/3] 출처 검토** — *Reflection*")
+        gate2 = st.radio(
+            "AI가 인용한 통계나 출처를 신뢰하시나요?",
+            ["선택하세요", "신뢰한다", "일부 의심된다", "신뢰하지 않는다"],
+            index=0, key="gate2_radio", horizontal=True,
+            disabled=not f1_done
+        )
+        f2_done = f1_done and gate2 != "선택하세요"
+        if f2_done:
+            st.session_state.reflection_text = gate2
+            st.success("✅ 완료")
 
-            st.markdown(
-                f'<div style="background:#f8f9fa;border-left:3px solid #1D9E75;'
-                f'border-radius:0 8px 8px 0;padding:16px 20px;line-height:1.75;">'
-                f'{second_half}</div>',
-                unsafe_allow_html=True
-            )
-
-            # ③ friction 2 — 출처 확인 의향 (st.radio)
-            st.markdown("")
-            gate2 = st.radio(
-                "🔍 AI가 인용한 통계나 출처 중 **직접 검색해서 확인하고 싶은 것**이 있나요?",
-                ["선택하세요", "있다", "없다"],
-                index=0,
-                key="gate2_radio",
-                horizontal=True
-            )
-
-            if gate2 != "선택하세요":
-                st.session_state.reflection_text = gate2
-                st.session_state.scaffold1_done = True
-                st.session_state.scaffold2_done = True
-                st.session_state.scaffold3_done = True
+        # ── Friction 3: Re-articulation (서술형) ─────────
+        st.markdown("**[3/3] 재서술** — *Re-articulation*")
+        st.caption("AI 응답의 핵심 주장을 AI의 언어가 아닌 **본인의 말**로 요약해 주세요.")
+        f3_val = st.session_state.counterfactual_text or ""
+        f3 = st.text_area(
+            "AI 핵심 주장을 본인 말로 요약 (40자 이상)",
+            height=120,
+            value=f3_val,
+            key="friction3_text",
+            disabled=not f2_done
+        )
+        f3_done = f2_done and len(f3) >= 40
+        if f3_done:
+            st.session_state.counterfactual_text = f3
+            st.session_state.scaffold1_done = True
+            st.session_state.scaffold2_done = True
+            st.session_state.scaffold3_done = True
+            st.success("✅ 완료")
+        elif f2_done:
+            st.caption(f"{len(f3)}자 / 최소 40자")
 
         st.divider()
         if st.session_state.scaffold1_done:
@@ -515,7 +527,7 @@ elif st.session_state.step == "ai_response":
                 st.rerun()
         else:
             st.button("최종 제안 작성 →", disabled=True, use_container_width=True)
-            st.caption("⚠️ 두 질문에 모두 답변해야 다음 단계로 이동할 수 있습니다.")
+            st.caption("⚠️ 세 항목을 모두 완료해야 다음 단계로 이동할 수 있습니다.")
 # ══════════════════════════════════════════════════════
 # STEP 5 — 최종 제안 작성 (목표 7분)
 # ══════════════════════════════════════════════════════

@@ -36,12 +36,12 @@ def compute_scores(
     vaf = 0
 
     if condition == "B":
-        # Condition B: inline friction 라디오 응답
-        if verification_text in ("yes", "unsure"):  # gate1: 의심됨
+        # Condition B: 라디오(gate1/gate2) + 서술형(counterfactual)
+        if str(verification_text).startswith("있다"):  # gate1: 검색 의향 있음
             vaf += 1
-        if reflection_text == "yes":                 # gate2: 출처확인 의향
+        if reflection_text in ("일부 의심된다", "신뢰하지 않는다"):  # gate2
             vaf += 1
-        if confidence_score <= 2:                    # 낮은 신뢰도
+        if confidence_score <= 2:
             vaf += 1
     else:
         # Condition A: 자유 텍스트 기반
@@ -85,8 +85,8 @@ def compute_scores(
         if len(str(reflection_text)) >= 20:
             suspicion_score += 1
 
-    # Q6 서술형에서 의심 키워드 감지
-    q6_text = str(verification_text) + " " + str(reflection_text) + " " + str(final_output)
+    # 서술형 텍스트에서 의심 키워드 감지
+    q6_text = str(verification_text) + " " + str(reflection_text) + " " + str(counterfactual_text) + " " + str(final_output)
     doubt_keywords = ["의심", "확인", "출처", "검증", "틀린", "잘못", "수정",
                       "다른", "맞나", "맞는지", "이상", "근거"]
     if any(kw in q6_text for kw in doubt_keywords):
