@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 from datetime import datetime
-from utils.claude_api import get_ai_response, apply_woz
+from utils.claude_api import get_ai_response, apply_woz, get_free_chat_response
 from utils.scoring import compute_scores
 from utils.sheets import save_to_sheets
 
@@ -332,7 +332,7 @@ elif st.session_state.step == "free_chat":
     show_progress(3)
     task_num = st.session_state.task_number
     brand = "VELOX" if task_num == 1 else "NOVA"
-    CHAT_SECONDS = 180  # 자유 탐색 시간: 3분
+    CHAT_SECONDS = 120  # 자유 탐색 시간: 2분
 
     st.subheader(f"2단계: {brand} 자유 탐색 대화")
     st.markdown(f"""
@@ -364,7 +364,6 @@ elif st.session_state.step == "free_chat":
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         st.session_state.chat_count += 1
-        from utils.claude_api import get_free_chat_response
         with st.spinner("AI 응답 생성 중..."):
             reply = get_free_chat_response(
                 st.session_state.chat_history,
@@ -386,7 +385,7 @@ elif st.session_state.step == "free_chat":
                      use_container_width=True, type="primary"):
             del st.session_state.chat_timer_start
             with st.spinner("AI 최종 분석 생성 중..."):
-                from utils.claude_api import get_ai_response, apply_woz
+                from utils.claude_api import get_ai_response, apply_woz, get_free_chat_response
                 original = get_ai_response(
                     st.session_state.pre_framing, task_num)
                 st.session_state.ai_response_original = original
