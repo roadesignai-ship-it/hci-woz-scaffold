@@ -12,7 +12,7 @@ SCOPES = [
 
 COLUMNS = [
     "timestamp", "participant_id", "student_name", "student_number",
-    "condition", "task_number",
+    "condition", "task_number", "brand",
     "pre_framing_text", "pre_framing_length",
     "ai_response_original", "ai_response_displayed",
     "woz_error1_original", "woz_error1_modified", "woz_error2_inserted",

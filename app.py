@@ -439,272 +439,83 @@ elif st.session_state.step == "ai_response":
             st.session_state.step = "final_output"
             st.rerun()
 
-    # ── Condition B: 인라인 friction 3종 내장 ──────────
+    # ── Condition B: 인라인 friction — Streamlit 네이티브 ─
     else:
-        import streamlit.components.v1 as components
-
-        ai_text = st.session_state.ai_response_displayed
-        woz_num = st.session_state.woz_error1_modified  # 변조된 수치 (예: "4%")
-
-        # 변조 수치를 노란색 하이라이트로 표시
         import re
+        ai_text = st.session_state.ai_response_displayed
+        woz_num = st.session_state.woz_error1_modified
+
+        # ① 변조 수치 하이라이트 (HTML 표시용)
         highlighted = ai_text
         if woz_num:
             highlighted = re.sub(
                 re.escape(woz_num),
-                f'<mark class="woz-mark">{woz_num}</mark>',
+                f'<span style="background:#fff3cd;color:#856404;padding:1px 4px;'
+                f'border-radius:3px;border-bottom:2px dashed #e6a817;">'
+                f'⚠️ {woz_num}</span>',
                 highlighted
             )
 
         # 단락 분리
         paragraphs = highlighted.strip().split('\n\n')
         mid = max(1, len(paragraphs) // 2)
-        first_half = '\n\n'.join(paragraphs[:mid])
-        second_half = '\n\n'.join(paragraphs[mid:])
+        first_half = '<br><br>'.join(paragraphs[:mid])
+        second_half = '<br><br>'.join(paragraphs[mid:])
 
-        # ── inline friction HTML 컴포넌트 ──────────────
-        friction_html = f"""
-        <html>
-        <head>
-        <meta charset="utf-8">
-        <style>
-          body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 14px;
-            line-height: 1.75;
-            color: #1a1a1a;
-            margin: 0;
-            padding: 0;
-          }}
-          .ai-box {{
-            background: #f8f9fa;
-            border-left: 3px solid #1D9E75;
-            border-radius: 0 8px 8px 0;
-            padding: 16px 20px;
-            margin-bottom: 12px;
-          }}
-          mark.woz-mark {{
-            background: #fff3cd;
-            color: #856404;
-            border-radius: 3px;
-            padding: 1px 3px;
-            cursor: pointer;
-            border-bottom: 2px dashed #e6a817;
-          }}
-          mark.woz-mark:hover::after {{
-            content: " ⚠️ 이 수치를 검증하셨나요?";
-            background: #fff3cd;
-            color: #856404;
-            font-size: 11px;
-            border: 1px solid #e6a817;
-            border-radius: 4px;
-            padding: 2px 6px;
-            margin-left: 6px;
-          }}
-          .friction-gate {{
-            background: #eef2fa;
-            border: 1px solid #c5d0e8;
-            border-radius: 8px;
-            padding: 14px 18px;
-            margin: 14px 0;
-          }}
-          .friction-gate p {{
-            margin: 0 0 10px;
-            font-size: 13px;
-            color: #2c3e6b;
-            font-weight: 500;
-          }}
-          .radio-group {{
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-          }}
-          .radio-group label {{
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            cursor: pointer;
-            font-size: 13px;
-            color: #333;
-            background: #fff;
-            border: 1px solid #c5d0e8;
-            border-radius: 20px;
-            padding: 5px 12px;
-            transition: all 0.15s;
-          }}
-          .radio-group label:hover {{
-            background: #dde5f7;
-          }}
-          .radio-group input[type=radio] {{
-            accent-color: #1F3864;
-          }}
-          .scroll-gate {{
-            background: #fff8e1;
-            border: 1px solid #f9c74f;
-            border-radius: 8px;
-            padding: 10px 16px;
-            margin: 12px 0;
-            font-size: 12px;
-            color: #7d5a00;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }}
-          .scroll-gate.hidden {{ display: none; }}
-          #done-btn {{
-            background: #1F3864;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 0;
-            width: 100%;
-            font-size: 14px;
-            font-weight: 500;
-            margin-top: 14px;
-            cursor: pointer;
-            opacity: 0.4;
-            pointer-events: none;
-            transition: opacity 0.2s;
-          }}
-          #done-btn.active {{
-            opacity: 1;
-            pointer-events: auto;
-          }}
-        </style>
-        </head>
-        <body>
+        # AI 응답 전반부 표시
+        st.markdown("**💬 AI 분석 결과**")
+        st.markdown(
+            f'<div style="background:#f8f9fa;border-left:3px solid #1D9E75;'
+            f'border-radius:0 8px 8px 0;padding:16px 20px;line-height:1.75;">'
+            f'{first_half}</div>',
+            unsafe_allow_html=True
+        )
 
-        <div class="ai-box" id="ai-content">
-          <div id="first-half">{first_half}</div>
+        # ② friction 1 — 마이크로 프롬프트 (st.radio)
+        st.markdown("")
+        gate1 = st.radio(
+            "💬 지금까지 읽은 내용에서 **의심되거나 확인이 필요한 부분**이 있나요?",
+            ["선택하세요", "있다", "없다", "잘 모르겠다"],
+            index=0,
+            key="gate1_radio",
+            horizontal=True
+        )
 
-          <!-- friction 1: 인라인 마이크로 프롬프트 (응답 중간 삽입) -->
-          <div class="friction-gate" id="gate1">
-            <p>💬 지금까지 읽은 내용에서 <strong>의심되거나 확인이 필요한 부분</strong>이 있나요?</p>
-            <div class="radio-group">
-              <label><input type="radio" name="gate1" value="yes" onchange="checkGate1(this)"> 있다</label>
-              <label><input type="radio" name="gate1" value="no" onchange="checkGate1(this)"> 없다</label>
-              <label><input type="radio" name="gate1" value="unsure" onchange="checkGate1(this)"> 잘 모르겠다</label>
-            </div>
-          </div>
+        # gate1 답변 후 후반부 표시
+        if gate1 != "선택하세요":
+            st.session_state.verification_text = gate1
 
-          <div id="second-half" style="opacity:0.3; pointer-events:none;">{second_half}</div>
-        </div>
+            st.markdown(
+                f'<div style="background:#f8f9fa;border-left:3px solid #1D9E75;'
+                f'border-radius:0 8px 8px 0;padding:16px 20px;line-height:1.75;">'
+                f'{second_half}</div>',
+                unsafe_allow_html=True
+            )
 
-        <!-- friction 2: 스크롤 게이트 -->
-        <div class="scroll-gate" id="scroll-gate">
-          ⬇️ 응답을 끝까지 읽어주세요. 읽기 완료 후 다음 단계가 활성화됩니다.
-        </div>
+            # ③ friction 2 — 출처 확인 의향 (st.radio)
+            st.markdown("")
+            gate2 = st.radio(
+                "🔍 AI가 인용한 통계나 출처 중 **직접 검색해서 확인하고 싶은 것**이 있나요?",
+                ["선택하세요", "있다", "없다"],
+                index=0,
+                key="gate2_radio",
+                horizontal=True
+            )
 
-        <!-- friction 3: 최종 확인 -->
-        <div class="friction-gate" id="gate2" style="display:none;">
-          <p>🔍 AI가 인용한 통계나 출처 중 <strong>직접 검색해서 확인하고 싶은 것</strong>이 있나요?</p>
-          <div class="radio-group">
-            <label><input type="radio" name="gate2" value="yes" onchange="checkGate2(this)"> 있다</label>
-            <label><input type="radio" name="gate2" value="no" onchange="checkGate2(this)"> 없다</label>
-          </div>
-        </div>
+            if gate2 != "선택하세요":
+                st.session_state.reflection_text = gate2
+                st.session_state.scaffold1_done = True
+                st.session_state.scaffold2_done = True
+                st.session_state.scaffold3_done = True
 
-        <button id="done-btn" onclick="submitDone()">최종 제안 작성 →</button>
-
-        <script>
-          var gate1Answered = false;
-          var gate2Answered = false;
-          var scrollDone = false;
-          var gate1Value = "";
-          var gate2Value = "";
-
-          function checkGate1(el) {{
-            gate1Value = el.value;
-            gate1Answered = true;
-            // 두 번째 반 활성화
-            document.getElementById('second-half').style.opacity = '1';
-            document.getElementById('second-half').style.pointerEvents = 'auto';
-            // 스크롤 감지 시작
-            checkScroll();
-          }}
-
-          function checkScroll() {{
-            var content = document.getElementById('ai-content');
-            var scrollGate = document.getElementById('scroll-gate');
-            if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 60) {{
-              onScrollDone();
-            }} else {{
-              window.addEventListener('scroll', function handler() {{
-                if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 60) {{
-                  window.removeEventListener('scroll', handler);
-                  onScrollDone();
-                }}
-              }});
-            }}
-          }}
-
-          function onScrollDone() {{
-            scrollDone = true;
-            document.getElementById('scroll-gate').classList.add('hidden');
-            document.getElementById('gate2').style.display = 'block';
-          }}
-
-          function checkGate2(el) {{
-            gate2Value = el.value;
-            gate2Answered = true;
-            tryActivateBtn();
-          }}
-
-          function tryActivateBtn() {{
-            if (gate1Answered && scrollDone && gate2Answered) {{
-              document.getElementById('done-btn').classList.add('active');
-            }}
-          }}
-
-          function submitDone() {{
-            window.parent.postMessage({{
-              type: 'friction_done',
-              gate1: gate1Value,
-              gate2: gate2Value
-            }}, '*');
-          }}
-        </script>
-        </body>
-        </html>
-        """
-
-        # friction 컴포넌트 렌더링
-        components.html(friction_html, height=700, scrolling=True)
-
-        # postMessage 수신 → 세션 상태 업데이트
-        st.caption("💡 AI 응답을 읽으며 중간 질문에 답하고, 끝까지 스크롤하면 다음 단계가 활성화됩니다.")
-
-        # JavaScript → Streamlit 통신: query param 방식
-        import urllib.parse
-        params = st.query_params
-        if params.get("friction_done") == "1":
-            st.session_state.verification_text = params.get("gate1", "")
-            st.session_state.reflection_text = params.get("gate2", "")
-            st.session_state.scaffold1_done = True
-            st.session_state.scaffold2_done = True
-            st.session_state.scaffold3_done = True
-
-        # 완료 버튼 (JS에서 query param 세팅 후 Streamlit이 감지)
-        st.markdown("""
-        <script>
-        window.addEventListener('message', function(e) {
-            if (e.data && e.data.type === 'friction_done') {
-                var url = new URL(window.location.href);
-                url.searchParams.set('friction_done', '1');
-                url.searchParams.set('gate1', e.data.gate1);
-                url.searchParams.set('gate2', e.data.gate2);
-                window.location.href = url.toString();
-            }
-        });
-        </script>
-        """, unsafe_allow_html=True)
-
+        st.divider()
         if st.session_state.scaffold1_done:
             if st.button("최종 제안 작성 →", use_container_width=True, type="primary"):
-                st.query_params.clear()
                 st.session_state.step = "final_output"
                 st.rerun()
-
+        else:
+            st.button("최종 제안 작성 →", disabled=True, use_container_width=True)
+            st.caption("⚠️ 두 질문에 모두 답변해야 다음 단계로 이동할 수 있습니다.")
 # ══════════════════════════════════════════════════════
 # STEP 5 — 최종 제안 작성 (목표 7분)
 # ══════════════════════════════════════════════════════
@@ -781,6 +592,7 @@ elif st.session_state.step == "final_output":
                 "student_number": st.session_state.student_number,
                 "condition": st.session_state.condition,
                 "task_number": st.session_state.task_number,
+                "brand": get_brand(st.session_state.participant_id, st.session_state.task_number),
                 "pre_framing_text": st.session_state.pre_framing,
                 "pre_framing_length": len(st.session_state.pre_framing),
                 "ai_response_original": st.session_state.ai_response_original,
