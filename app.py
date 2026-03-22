@@ -41,14 +41,21 @@ def show_progress(step_index):
                     unsafe_allow_html=True)
     st.divider()
 
-# ── Within-subject 조건 결정 ───────────────────────────
-# 홀수 번호: Task1=A → Task2=B
-# 짝수 번호: Task1=B → Task2=A  (counterbalancing)
+# ── Within-subject 조건 및 과제 순서 결정 ──────────────
+# 홀수 번호: Task1=VELOX(A) → Task2=NOVA(B)
+# 짝수 번호: Task1=NOVA(B)  → Task2=VELOX(A)
 def get_condition(pid: int, task_number: int) -> str:
     if pid % 2 == 1:  # 홀수
         return "A" if task_number == 1 else "B"
     else:             # 짝수
         return "B" if task_number == 1 else "A"
+
+def get_brand(pid: int, task_number: int) -> str:
+    """홀수: VELOX→NOVA / 짝수: NOVA→VELOX"""
+    if pid % 2 == 1:
+        return "VELOX" if task_number == 1 else "NOVA"
+    else:
+        return "NOVA" if task_number == 1 else "VELOX"
 
 # ── session_state 초기화 ───────────────────────────────
 defaults = {
@@ -142,13 +149,15 @@ elif st.session_state.step == "task_intro":
     show_progress(1)
     task_num = st.session_state.task_number
     cond = st.session_state.condition
+    pid = st.session_state.participant_id
+    brand_intro = get_brand(pid, task_num)
     st.subheader(f"📋 과제 {task_num}/2 안내 및 배경 자료")
     st.caption(f"{'첫 번째' if task_num == 1 else '두 번째'} 과제입니다. "
                f"조건: {'기본 인터페이스' if cond == 'A' else '심화 인터페이스'}")
 
     # ── 과제별 배경 자료 분기 ───────────────────────────
-    if task_num == 1:
-        # Task 1: VELOX (Fast Fashion)
+    if brand_intro == "VELOX":
+        # VELOX (Fast Fashion)
         st.markdown("""
         #### 📰 [업계 리포트] VELOX, 성장의 이면에 드리운 지속가능성 위기
         *2024년 패션 산업 지속가능성 연구소(FSRI) 분기 보고서 요약*
@@ -206,7 +215,7 @@ elif st.session_state.step == "task_intro":
         """)
 
     else:
-        # Task 2: NOVA (전자 폐기물)
+        # NOVA (전자 폐기물)
         st.markdown("""
         #### 📰 [업계 리포트] NOVA, 전자 폐기물의 그늘 속에서 성장하는 테크 브랜드
         *2024년 글로벌 전자산업 지속가능성 연구센터(GESC) 분기 보고서 요약*
@@ -288,20 +297,22 @@ elif st.session_state.step == "task_intro":
 # ══════════════════════════════════════════════════════
 elif st.session_state.step == "pre_framing":
     show_progress(2)
+    task_num_pre = st.session_state.task_number
+    brand_pre = get_brand(st.session_state.participant_id, task_num_pre)
     st.subheader("1단계: AI 피드백 전 초기 분석")
     st.markdown(f"""
-    방금 읽은 배경 자료를 바탕으로, AI 피드백을 받기 **전에** 본인의 초기 분석을 작성해 주세요. ({MIN_PRE_CHARS}자 이상)
+    방금 읽은 배경 자료를 바탕으로, AI 피드백을 받기 **전에** {brand_pre}의 핵심 문제를 정의해 주세요. ({MIN_PRE_CHARS}자 이상)
 
     아래 질문을 참고하되, 자유롭게 서술해도 됩니다.
-    - VELOX가 직면한 **가장 핵심적인** 지속가능성 문제는 무엇이라고 생각하나요?
-    - **어떤 이해관계자**를 우선적으로 공략해야 할까요? 그 이유는?
-    - 어떤 **서비스 개입 지점**이 가장 효과적일 것 같나요?
+    - **{brand_pre}가 직면한 가장 핵심적인** 지속가능성 문제는 무엇인가요?
+    - 그 문제의 **근거**(데이터, 이해관계자 영향)는 무엇인가요?
+    - 왜 **지금** 이 문제를 해결해야 하나요?
     """)
 
     _placeholder_pre = (
         "예) VELOX의 핵심 문제는 과잉 생산으로 인한 탄소 배출 증가이며, "
         "소비자 행동 변화와 생산 구조 개혁이 동시에 필요한 구조적 문제입니다..."
-        if task_num_pre == 1 else
+        if brand_pre == "VELOX" else
         "예) NOVA의 핵심 문제는 수리 불가능 설계로 인한 전자 폐기물 급증이며, "
         "EU 수리권 법제화 압박과 소비자 인식 변화가 맞물린 구조적 전환점에 있습니다..."
     )
@@ -338,7 +349,7 @@ elif st.session_state.step == "pre_framing":
 elif st.session_state.step == "free_chat":
     show_progress(3)
     task_num = st.session_state.task_number
-    brand = "VELOX" if task_num == 1 else "NOVA"
+    brand = get_brand(st.session_state.participant_id, task_num)
     CHAT_SECONDS = 120  # 자유 탐색 시간: 2분
 
     st.subheader(f"2단계: {brand} 자유 탐색 대화")
@@ -373,10 +384,11 @@ elif st.session_state.step == "free_chat":
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         st.session_state.chat_count += 1
+        _free_task = 1 if get_brand(st.session_state.participant_id, task_num) == "VELOX" else 2
         with st.spinner("AI 응답 생성 중..."):
             reply = get_free_chat_response(
                 st.session_state.chat_history,
-                task_number=task_num,
+                task_number=_free_task,
                 pre_framing=st.session_state.pre_framing
             )
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
@@ -392,10 +404,11 @@ elif st.session_state.step == "free_chat":
             if "chat_timer_task" in st.session_state:
                 del st.session_state.chat_timer_task
             with st.spinner("AI 최종 분석 생성 중..."):
+                _api_task = 1 if get_brand(st.session_state.participant_id, task_num) == "VELOX" else 2
                 original = get_ai_response(
-                    st.session_state.pre_framing, task_num)
+                    st.session_state.pre_framing, _api_task)
                 st.session_state.ai_response_original = original
-                displayed, e1_orig, e1_mod, e2 = apply_woz(original, task_num)
+                displayed, e1_orig, e1_mod, e2 = apply_woz(original, _api_task)
                 st.session_state.ai_response_displayed = displayed
                 st.session_state.woz_error1_original = e1_orig
                 st.session_state.woz_error1_modified = e1_mod
@@ -698,7 +711,7 @@ elif st.session_state.step == "ai_response":
 elif st.session_state.step == "final_output":
     show_progress(4)
     task_num_f = st.session_state.task_number
-    brand_f = "VELOX" if task_num_f == 1 else "NOVA"
+    brand_f = get_brand(st.session_state.participant_id, task_num_f)
     st.subheader("3단계: 최종 문제 정의")
     st.markdown(f"""
     AI 피드백을 검토한 후, **{brand_f}의 핵심 문제를 최종적으로 정의**해 주세요. ({MIN_FINAL_CHARS}자 이상)
@@ -727,7 +740,7 @@ elif st.session_state.step == "final_output":
             placeholder=(
                 "예) VELOX의 핵심 문제는 연간 4,200만 벌 생산 중 40%가 소각되는 "
                 "과잉 생산 구조입니다. 이는 단순한 환경 문제가 아니라..."
-                if task_num_f == 1 else
+                if brand_f == "VELOX" else
                 "예) NOVA의 핵심 문제는 수리 불가능 설계로 연간 수백만 대가 조기 폐기되는 "
                 "구조적 낭비입니다. 이는 제조사의 의도적 설계 선택과 맞닿아 있으며..."
             ),
@@ -805,7 +818,8 @@ elif st.session_state.step == "post_survey":
     task_num = st.session_state.task_number
     cond = st.session_state.condition
     st.subheader(f"과제 {task_num} 사후 질문")
-    st.markdown(f"방금 완료한 **{'VELOX' if task_num == 1 else 'NOVA'} 과제**에 대해 솔직하게 답해주세요. (약 3분)")
+    _brand_post = get_brand(st.session_state.participant_id, task_num)
+    st.markdown(f"방금 완료한 **{_brand_post} 과제**에 대해 솔직하게 답해주세요. (약 3분)")
     st.caption("1 = 전혀 그렇지 않다 / 5 = 매우 그렇다")
     st.divider()
 
