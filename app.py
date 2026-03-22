@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 from datetime import datetime
-from utils.claude_api import get_ai_response, apply_woz, get_free_chat_response
+from utils.claude_api import get_ai_response, apply_woz
 from utils.scoring import compute_scores
 from utils.sheets import save_to_sheets
 
@@ -20,7 +20,7 @@ MIN_COUNTER_CHARS = 40    # scaffold2 최소 글자
 MIN_REFLECT_CHARS = 20    # scaffold3 최소 글자
 
 # ── 진행률 표시 ────────────────────────────────────────
-STEPS = ["시작", "과제 설명", "사전 분석", "자유 탐색", "AI 피드백", "최종 제안", "사후 질문", "완료"]
+STEPS = ["시작", "과제 설명", "사전 분석", "AI 피드백", "최종 제안", "사후 질문", "완료"]
 
 def show_progress(step_index):
     st.progress(step_index / (len(STEPS) - 1))
@@ -80,8 +80,6 @@ defaults = {
     "scaffold1_done": False,
     "scaffold2_done": False,
     "scaffold3_done": False,
-    "chat_history": [],   # 자유 탐색 대화 로그
-    "chat_count": 0,      # 주고받은 횟수
     # 사후 질문 (task마다 초기화)
     "post_q1": 3,   # AI 수치 신뢰도
     "post_q2": 3,   # AI 출처 신뢰도
@@ -333,80 +331,9 @@ elif st.session_state.step == "pre_framing":
     if char_count >= MIN_PRE_CHARS:
         if st.button("AI 피드백 받기 →", use_container_width=True, type="primary"):
             st.session_state.pre_framing = text
-            st.session_state.chat_history = []
-            st.session_state.chat_count = 0
-            st.session_state.step = "free_chat"
-            st.rerun()
-    else:
-        st.button("AI 피드백 받기 →", disabled=True, use_container_width=True)
-
-# ══════════════════════════════════════════════════════
-# STEP 4 — AI 응답 + 조건별 Scaffold (목표 8분)
-# ══════════════════════════════════════════════════════
-# ══════════════════════════════════════════════════════
-# STEP FREE_CHAT — 자유 탐색 대화
-# ══════════════════════════════════════════════════════
-elif st.session_state.step == "free_chat":
-    show_progress(3)
-    task_num = st.session_state.task_number
-    brand = get_brand(st.session_state.participant_id, task_num)
-    CHAT_SECONDS = 120  # 자유 탐색 시간: 2분
-
-    st.subheader(f"2단계: {brand} 자유 탐색 대화")
-    st.markdown(f"""
-    AI와 자유롭게 대화하며 **{brand}**의 문제를 더 깊이 탐색해 보세요.  
-    배경 자료에서 궁금한 점, 데이터의 의미, 이해관계자 관계 등 무엇이든 질문할 수 있습니다.
-    """)
-
-    # 타이머 시작 시각 기록 (최초 1회만)
-    if "chat_timer_start" not in st.session_state or st.session_state.get("chat_timer_task") != task_num:
-        st.session_state.chat_timer_start = time.time()
-        st.session_state.chat_timer_task = task_num  # task별 타이머 구분
-
-    elapsed = int(time.time() - st.session_state.chat_timer_start)
-    remaining = max(0, CHAT_SECONDS - elapsed)
-    timer_done = remaining == 0
-
-    # 타이머 상태 표시
-    if not timer_done:
-        mins, secs = divmod(remaining, 60)
-        st.info(f"⏱️ 자유 탐색 시간: {mins}분 {secs:02d}초 남음 — 자유롭게 질문하세요.")
-    else:
-        st.success("✅ 탐색 시간이 완료되었습니다. 다음 단계로 이동할 수 있습니다.")
-
-    # 대화 이력 표시
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    # 채팅 입력 (타이머 전후 모두 가능)
-    user_input = st.chat_input("질문이나 아이디어를 입력하세요...")
-    if user_input:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        st.session_state.chat_count += 1
-        _free_task = 1 if get_brand(st.session_state.participant_id, task_num) == "VELOX" else 2
-        with st.spinner("AI 응답 생성 중..."):
-            reply = get_free_chat_response(
-                st.session_state.chat_history,
-                task_number=_free_task,
-                pre_framing=st.session_state.pre_framing
-            )
-        st.session_state.chat_history.append({"role": "assistant", "content": reply})
-        st.rerun()
-
-    st.divider()
-
-    # 다음 단계 버튼
-    if timer_done:
-        if st.button("탐색 완료 → AI 최종 분석 받기",
-                     use_container_width=True, type="primary"):
-            del st.session_state.chat_timer_start
-            if "chat_timer_task" in st.session_state:
-                del st.session_state.chat_timer_task
-            with st.spinner("AI 최종 분석 생성 중..."):
-                _api_task = 1 if get_brand(st.session_state.participant_id, task_num) == "VELOX" else 2
-                original = get_ai_response(
-                    st.session_state.pre_framing, _api_task)
+            with st.spinner("AI 분석 생성 중... (10~20초 소요)"):
+                _api_task = 1 if get_brand(st.session_state.participant_id, st.session_state.task_number) == "VELOX" else 2
+                original = get_ai_response(st.session_state.pre_framing, _api_task)
                 st.session_state.ai_response_original = original
                 displayed, e1_orig, e1_mod, e2 = apply_woz(original, _api_task)
                 st.session_state.ai_response_displayed = displayed
@@ -416,13 +343,10 @@ elif st.session_state.step == "free_chat":
             st.session_state.step = "ai_response"
             st.rerun()
     else:
-        st.button("탐색 완료 → AI 최종 분석 받기",
-                  disabled=True, use_container_width=True)
-        st.caption(f"⚠️ {remaining}초 후 활성화됩니다.")
-        # 타이머 자동 갱신 — 채팅 입력이 없을 때만
-        if not user_input:
-            time.sleep(1)
-            st.rerun()
+        st.button("AI 피드백 받기 →", disabled=True, use_container_width=True)
+
+# ══════════════════════════════════════════════════════
+# STEP 4 — AI 응답 + 조건별 Scaffold (목표 8분)
 
 elif st.session_state.step == "ai_response":
     show_progress(3)
@@ -470,10 +394,10 @@ elif st.session_state.step == "ai_response":
 
         gate1 = st.radio(
             "AI 응답에서 직접 검색해보고 싶은 수치나 출처가 있나요?",
-            ["선택하세요", "있다", "없다"],
-            index=0, key="gate1_radio", horizontal=True
+            ["있다", "없다"],
+            index=None, key="gate1_radio", horizontal=True
         )
-        f1_done = gate1 != "선택하세요"
+        f1_done = gate1 is not None
         if f1_done:
             if gate1 == "있다":
                 gate1_detail = st.text_input(
@@ -490,11 +414,11 @@ elif st.session_state.step == "ai_response":
         st.markdown("**[2/3] 출처 검토** — *Reflection*")
         gate2 = st.radio(
             "AI가 인용한 통계나 출처를 신뢰하시나요?",
-            ["선택하세요", "신뢰한다", "일부 의심된다", "신뢰하지 않는다"],
-            index=0, key="gate2_radio", horizontal=True,
+            ["신뢰한다", "일부 의심된다", "신뢰하지 않는다"],
+            index=None, key="gate2_radio", horizontal=True,
             disabled=not f1_done
         )
-        f2_done = f1_done and gate2 != "선택하세요"
+        f2_done = f1_done and gate2 is not None
         if f2_done:
             st.session_state.reflection_text = gate2
             st.success("✅ 완료")
@@ -697,10 +621,6 @@ elif st.session_state.step == "post_survey":
                 st.session_state.condition = get_condition(
                     st.session_state.participant_id, 2)
                 # chat_timer_start는 key-value reset 전에 별도 삭제
-                if "chat_timer_start" in st.session_state:
-                    del st.session_state.chat_timer_start
-                if "chat_timer_task" in st.session_state:
-                    del st.session_state.chat_timer_task
                 for key in ["pre_framing", "ai_response_original",
                             "ai_response_displayed", "woz_error1_original",
                             "woz_error1_modified", "woz_error2_inserted",
@@ -708,7 +628,6 @@ elif st.session_state.step == "post_survey":
                             "counterfactual_text", "reflection_text",
                             "final_output", "scaffold1_done",
                             "scaffold2_done", "scaffold3_done",
-                            "chat_history", "chat_count",
                             "post_q1", "post_q2", "post_q3",
                             "post_q4", "post_q5", "post_q6"]:
                     st.session_state[key] = defaults[key]
